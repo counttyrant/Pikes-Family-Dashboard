@@ -30,6 +30,7 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   aiProvider: 'openai',
   azureEndpoint: '',
   azureDeployment: '',
+  openaiModel: 'gpt-4o-mini',
   layouts: [],
   theme: 'ocean',
   photoSource: 'local',

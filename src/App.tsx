@@ -154,6 +154,7 @@ function AppContent() {
         aiProvider={settings?.aiProvider || 'openai'}
         azureEndpoint={settings?.azureEndpoint || ''}
         azureDeployment={settings?.azureDeployment || ''}
+        openaiModel={settings?.openaiModel || 'gpt-4o-mini'}
       />
     </div>
   )

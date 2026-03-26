@@ -135,7 +135,7 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
     if (!isControlled) setInternalOpen(false);
   };
 
-  const { user, signOut } = useAuth();
+  const { user, signOut, signIn } = useAuth();
   const { theme, setTheme, themes } = useTheme();
 
   const [settings, setSettings] = useState<DashboardSettings | null>(null);
@@ -151,6 +151,8 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
   const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarInfo[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarError, setCalendarError] = useState<string | null>(null);
+  const [calendarErrorIs403, setCalendarErrorIs403] = useState(false);
+  const [manualCalendarEmail, setManualCalendarEmail] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
@@ -239,6 +241,7 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
     }
     setCalendarLoading(true);
     setCalendarError(null);
+    setCalendarErrorIs403(false);
     try {
       const calendars = await fetchCalendarList(user.accessToken);
       setGoogleCalendars(calendars);
@@ -247,11 +250,40 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to load calendars';
-      setCalendarError(msg);
+      const is403 = msg.includes('403');
+      setCalendarErrorIs403(is403);
+      setCalendarError(
+        is403
+          ? 'Access denied (403). Your token may be stale — try re-authenticating below.'
+          : msg,
+      );
       console.warn('Failed to fetch calendar list:', err);
     } finally {
       setCalendarLoading(false);
     }
+  };
+
+  const handleAddManualCalendar = () => {
+    if (!manualCalendarEmail.trim() || !settings) return;
+    const email = manualCalendarEmail.trim().toLowerCase();
+    const current = settings.selectedCalendarIds ?? ['primary'];
+    if (!current.includes(email)) {
+      save({ selectedCalendarIds: [...current, email] });
+    }
+    // Also add to the displayed list so it shows in the UI
+    if (!googleCalendars.find((c) => c.id === email)) {
+      setGoogleCalendars((prev) => [
+        ...prev,
+        {
+          id: email,
+          summary: email,
+          backgroundColor: '#8b5cf6',
+          primary: false,
+          accessRole: 'reader',
+        },
+      ]);
+    }
+    setManualCalendarEmail('');
   };
 
   const handleToggleCalendar = (calId: string) => {
@@ -371,7 +403,21 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                   {calendarLoading ? 'Loading…' : 'Load Calendars'}
                 </button>
                 {calendarError && (
-                  <p className="text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">{calendarError}</p>
+                  <div className="space-y-2">
+                    <p className="text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">{calendarError}</p>
+                    {calendarErrorIs403 && (
+                      <button
+                        onClick={async () => {
+                          await signIn();
+                          // Auto-retry after re-auth
+                          setTimeout(() => handleFetchGoogleCalendars(), 1000);
+                        }}
+                        className="px-4 py-2 text-sm bg-yellow-500/20 hover:bg-yellow-500/30 rounded-lg text-yellow-400 transition-colors"
+                      >
+                        🔄 Re-authenticate with Google
+                      </button>
+                    )}
+                  </div>
                 )}
                 {googleCalendars.length > 0 && (
                   <div className="space-y-1">
@@ -402,6 +448,29 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                     })}
                   </div>
                 )}
+
+                {/* Manual calendar by email */}
+                <div className="space-y-1 pt-2 border-t border-white/10">
+                  <span className="text-xs text-white/60">Add shared calendar by email:</span>
+                  <div className="flex gap-2">
+                    <input
+                      value={manualCalendarEmail}
+                      onChange={(e) => setManualCalendarEmail(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddManualCalendar()}
+                      placeholder="someone@gmail.com"
+                      className="flex-1 rounded-lg bg-white/10 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none"
+                    />
+                    <button
+                      onClick={handleAddManualCalendar}
+                      className="p-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg transition-colors"
+                    >
+                      <Plus size={18} className="text-blue-400" />
+                    </button>
+                  </div>
+                  <p className="text-xs text-white/30">
+                    Enter the email of someone who shared their calendar with you.
+                  </p>
+                </div>
               </div>
             ) : (
               <p className="text-sm text-white/50">Sign in to connect Google Calendar</p>
@@ -841,7 +910,7 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
               placeholder={(settings.aiProvider || 'openai') === 'azure-openai' ? 'Your Azure OpenAI key' : 'sk-...'}
             />
 
-            {(settings.aiProvider || 'openai') === 'azure-openai' && (
+            {(settings.aiProvider || 'openai') === 'azure-openai' ? (
               <>
                 <InputField
                   label="Azure Endpoint"
@@ -855,13 +924,8 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                   onChange={(v) => save({ azureDeployment: v })}
                   placeholder="gpt-4o-mini"
                 />
-              </>
-            )}
-
-            <p className="text-xs text-white/40">
-              {(settings.aiProvider || 'openai') === 'azure-openai' ? (
-                <>
-                  Uses your Azure OpenAI deployment. Find keys in the{' '}
+                <p className="text-xs text-white/40">
+                  Each deployment uses one model. Create multiple deployments in{' '}
                   <a
                     href="https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI"
                     target="_blank"
@@ -869,12 +933,39 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                     className="text-blue-400 underline hover:text-blue-300"
                   >
                     Azure Portal
-                  </a>
-                </>
-              ) : (
-                <>
-                  Uses <strong className="text-white/60">gpt-4o-mini</strong> for cost
-                  efficiency. Get a key at{' '}
+                  </a>{' '}
+                  and change the deployment name here to switch models.
+                </p>
+              </>
+            ) : (
+              <>
+                {/* OpenAI model selector */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-white/60 font-medium">Model</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { id: 'gpt-4o-mini', label: 'GPT-4o Mini', badge: 'Fast & cheap' },
+                      { id: 'gpt-4o', label: 'GPT-4o', badge: 'Smart' },
+                      { id: 'gpt-4-turbo', label: 'GPT-4 Turbo', badge: 'Legacy' },
+                      { id: 'gpt-3.5-turbo', label: 'GPT-3.5', badge: 'Budget' },
+                    ].map((m) => (
+                      <button
+                        key={m.id}
+                        onClick={() => save({ openaiModel: m.id })}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                          (settings.openaiModel || 'gpt-4o-mini') === m.id
+                            ? 'bg-teal-500/30 text-teal-300 ring-1 ring-teal-400/40'
+                            : 'bg-white/5 text-white/50 hover:bg-white/10'
+                        }`}
+                      >
+                        {m.label}
+                        <span className="text-[0.55rem] ml-1 opacity-60">{m.badge}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-xs text-white/40">
+                  Get a key at{' '}
                   <a
                     href="https://platform.openai.com/api-keys"
                     target="_blank"
@@ -883,9 +974,9 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                   >
                     platform.openai.com
                   </a>
-                </>
-              )}
-            </p>
+                </p>
+              </>
+            )}
           </Section>
 
           {/* ---- About ---- */}

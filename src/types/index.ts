@@ -175,6 +175,7 @@ export interface DashboardSettings {
   aiProvider: AiProvider;
   azureEndpoint: string;
   azureDeployment: string;
+  openaiModel: string;
   layouts: WidgetLayout[];
   theme: ThemeName;
   photoSource: PhotoSource;

@@ -11,6 +11,7 @@ interface AiAssistantProps {
   aiProvider?: 'openai' | 'azure-openai';
   azureEndpoint?: string;
   azureDeployment?: string;
+  openaiModel?: string;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -28,7 +29,7 @@ function getSpeechRecognition(): (new () => SpeechRecognition) | null {
 /*  Component                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '', azureDeployment = '' }: AiAssistantProps) {
+export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '', azureDeployment = '', openaiModel = 'gpt-4o-mini' }: AiAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -85,7 +86,7 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
 
       // Only include model for OpenAI (Azure uses deployment name)
       if (aiProvider !== 'azure-openai') {
-        body.model = 'gpt-4o-mini';
+        body.model = openaiModel || 'gpt-4o-mini';
       }
 
       const res = await fetch(url, {
