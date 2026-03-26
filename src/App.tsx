@@ -107,17 +107,11 @@ function AppContent() {
     }
   }
 
-  // Show login screen if not authenticated
-  if (!user) {
-    return <LoginScreen />
-  }
-
   const nightClass = isNightMode ? 'brightness-50' : ''
 
-  // Build the ordered list of enabled pages
+  // Build the ordered list of enabled pages (must be before any early return)
   const enabledPages = useMemo(() => {
     const order = settings?.enabledPages ?? DEFAULT_PAGE_ORDER;
-    // Filter to only valid page IDs that exist in ALL_PAGES
     return order.filter(id => ALL_PAGES.some(p => p.id === id));
   }, [settings?.enabledPages]);
 
@@ -125,6 +119,11 @@ function AppContent() {
     () => enabledPages.map(id => ALL_PAGES.find(p => p.id === id)?.label ?? id),
     [enabledPages]
   );
+
+  // Show login screen if not authenticated
+  if (!user) {
+    return <LoginScreen />
+  }
 
   // Render a page component by its id
   const renderPage = (id: string) => {
