@@ -22,7 +22,9 @@ const SYSTEM_PROMPT =
   'You are a helpful family assistant for the Pikes family dashboard. You can help with scheduling, chores, meal ideas, and general questions. Keep answers concise and family-friendly.';
 
 function getSpeechRecognition(): (new () => SpeechRecognition) | null {
-  return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const w = window as any;
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -177,8 +179,6 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
     setListening(true);
   };
 
-  const hasSpeech = !!getSpeechRecognition();
-
   /* -- Render ------------------------------------------------------------ */
 
   return (
@@ -268,19 +268,17 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
         {/* Input */}
         <div className="p-3 border-t border-white/10 shrink-0">
           <div className="flex gap-2">
-            {hasSpeech && (
-              <button
-                onClick={toggleVoice}
-                className={`p-2.5 rounded-xl transition-colors ${
-                  listening
-                    ? 'bg-red-500/30 text-red-400'
-                    : 'hover:bg-white/10 text-white/50'
-                }`}
-                title={listening ? 'Stop listening' : 'Voice input'}
-              >
-                {listening ? <MicOff size={18} /> : <Mic size={18} />}
-              </button>
-            )}
+            <button
+              onClick={toggleVoice}
+              className={`p-2.5 rounded-xl transition-colors ${
+                listening
+                  ? 'bg-red-500/30 text-red-400 animate-pulse'
+                  : 'hover:bg-white/10 text-white/50'
+              }`}
+              title={listening ? 'Stop listening' : 'Tap to talk'}
+            >
+              {listening ? <MicOff size={18} /> : <Mic size={18} />}
+            </button>
             <input
               ref={inputRef}
               value={input}
