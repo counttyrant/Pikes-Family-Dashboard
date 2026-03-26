@@ -188,7 +188,8 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
     return (
       <div
         ref={containerRef}
-        className="h-full w-full px-3 pt-14 pb-6 relative overflow-y-auto"
+        className="min-h-full w-full px-3 pt-14 pb-20 relative overflow-y-auto swiper-no-swiping"
+        style={{ height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}
       >
         {/* Mobile edit controls — compact top bar */}
         <div className="fixed top-3 left-3 z-40 flex items-center gap-1.5">
