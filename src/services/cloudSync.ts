@@ -127,7 +127,9 @@ const WIDGET_KEYS = [
 ];
 
 /**
- * Initialize: test API, pull settings + widget data from cloud into local.
+ * Initialize: test API, then two-way merge settings + widget data.
+ * - If cloud has data → merge into local (cloud wins for non-empty fields)
+ * - If cloud is empty but local has real data → push local to cloud
  */
 export async function initCloudSync(): Promise<boolean> {
   try {
@@ -136,20 +138,39 @@ export async function initCloudSync(): Promise<boolean> {
     });
     if (!res.ok && res.status !== 404) return false;
 
+    const { db } = await import('../db');
     const cloudSettings = await pullOneFromCloud('settings', 'main');
+    const local = await db.settings.get('main');
+
     if (cloudSettings) {
+      // Cloud has data — merge into local (cloud values override local)
       const clean = stripCosmosMeta(cloudSettings);
-      const { db } = await import('../db');
-      const local = await db.settings.get('main');
       if (!local) {
         await db.settings.put({ ...clean, id: 'main' } as never);
       } else {
         await db.settings.put({ ...local, ...clean, id: 'main' } as never);
       }
+    } else if (local) {
+      // Cloud is empty but local has settings — push local up to cloud
+      const localObj = local as unknown as Record<string, unknown>;
+      const hasRealData = Object.entries(localObj).some(
+        ([k, v]) => k !== 'id' && typeof v === 'string' && v.length > 0 && k.toLowerCase().includes('key')
+      );
+      if (hasRealData) {
+        console.log('Cloud empty, pushing local settings to cloud');
+        await syncToCloud('settings', localObj);
+      }
     }
 
+    // Sync widget data (localStorage items)
     for (const key of WIDGET_KEYS) {
-      await pullLocalStorageFromCloud(key).catch(() => {});
+      const cloudVal = await pullOneFromCloud('localStorage', key);
+      const localVal = localStorage.getItem(key);
+      if (cloudVal && typeof cloudVal.value === 'string') {
+        localStorage.setItem(key, cloudVal.value);
+      } else if (localVal) {
+        await cloudPut('localStorage', { id: key, value: localVal });
+      }
     }
     return true;
   } catch {
