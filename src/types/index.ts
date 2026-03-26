@@ -195,6 +195,7 @@ export interface DashboardSettings {
   ttsVoiceName: string;   // preferred voice name (empty = auto)
   ttsRate: number;        // 0.5–2.0
   ttsPitch: number;       // 0.5–2.0
+  enabledPages: string[]; // ordered list of enabled page IDs
 }
 
 /* ── Misc ─────────────────────────────────────────────────────────────── */

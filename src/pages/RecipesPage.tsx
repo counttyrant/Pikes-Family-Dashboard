@@ -155,7 +155,7 @@ Respond ONLY with valid JSON in this exact format:
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `I have these ingredients: ${ingredients.trim()}` },
         ],
-        max_tokens: 2000,
+        max_completion_tokens: 2000,
       };
 
       if (aiProvider !== 'azure-openai') {

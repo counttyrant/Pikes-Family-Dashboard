@@ -119,7 +119,7 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
           { role: 'system', content: SYSTEM_PROMPT },
           ...updated.map((m) => ({ role: m.role, content: m.content })),
         ],
-        max_tokens: 500,
+        max_completion_tokens: 500,
       };
 
       // Only include model for OpenAI (Azure uses deployment name)

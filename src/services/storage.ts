@@ -52,6 +52,7 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   ttsVoiceName: '',
   ttsRate: 0.95,
   ttsPitch: 1.1,
+  enabledPages: ['dashboard', 'chores', 'shopping', 'activities', 'recipes'],
 };
 
 export async function getSettings(): Promise<DashboardSettings> {

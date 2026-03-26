@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import { Pagination, Navigation } from 'swiper/modules'
@@ -22,7 +22,16 @@ import { initCloudSync } from './services/cloudSync'
 import type { DashboardSettings } from './types'
 import { Maximize, Minimize, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
 
-const PAGE_LABELS = ['Dashboard', 'Chores', 'Shopping', 'Activities', 'Recipes'];
+// All available pages — id must match enabledPages values
+export const ALL_PAGES = [
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'chores', label: 'Chores' },
+  { id: 'shopping', label: 'Shopping' },
+  { id: 'activities', label: 'Activities' },
+  { id: 'recipes', label: 'Recipes' },
+] as const;
+
+export const DEFAULT_PAGE_ORDER = ALL_PAGES.map(p => p.id);
 
 
 function AppContent() {
@@ -111,6 +120,44 @@ function AppContent() {
 
   const nightClass = isNightMode ? 'brightness-50' : ''
 
+  // Build the ordered list of enabled pages
+  const enabledPages = useMemo(() => {
+    const order = settings?.enabledPages ?? DEFAULT_PAGE_ORDER;
+    // Filter to only valid page IDs that exist in ALL_PAGES
+    return order.filter(id => ALL_PAGES.some(p => p.id === id));
+  }, [settings?.enabledPages]);
+
+  const pageLabels = useMemo(
+    () => enabledPages.map(id => ALL_PAGES.find(p => p.id === id)?.label ?? id),
+    [enabledPages]
+  );
+
+  // Render a page component by its id
+  const renderPage = (id: string) => {
+    switch (id) {
+      case 'dashboard':
+        return <Dashboard settings={settings} accessToken={user!.accessToken} />;
+      case 'chores':
+        return <ChoreChart />;
+      case 'shopping':
+        return <ShoppingNotes />;
+      case 'activities':
+        return <ActivitiesPage />;
+      case 'recipes':
+        return (
+          <RecipesPage
+            apiKey={settings?.openaiApiKey || ''}
+            aiProvider={settings?.aiProvider || 'openai'}
+            azureEndpoint={settings?.azureEndpoint || ''}
+            azureDeployment={settings?.azureDeployment || ''}
+            openaiModel={settings?.openaiModel || 'gpt-4o-mini'}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className={`h-screen w-screen overflow-hidden text-white ${nightClass} transition-all duration-500`}>
       {/* Screen saver overlay */}
@@ -140,13 +187,14 @@ function AppContent() {
         </button>
       </div>
 
-      {/* Main swiper */}
+      {/* Main swiper — driven by enabledPages */}
       <Swiper
+        key={enabledPages.join(',')}
         modules={[Pagination, Navigation]}
         pagination={{ clickable: true }}
         spaceBetween={0}
         slidesPerView={1}
-        loop={true}
+        loop={enabledPages.length > 1}
         className="h-full w-full"
         touchRatio={1.5}
         resistance={true}
@@ -154,27 +202,9 @@ function AppContent() {
         onSwiper={(sw) => { swiperRef.current = sw }}
         onSlideChange={(sw) => setActiveIndex(sw.realIndex)}
       >
-        <SwiperSlide>
-          <Dashboard settings={settings} accessToken={user.accessToken} />
-        </SwiperSlide>
-        <SwiperSlide>
-          <ChoreChart />
-        </SwiperSlide>
-        <SwiperSlide>
-          <ShoppingNotes />
-        </SwiperSlide>
-        <SwiperSlide>
-          <ActivitiesPage />
-        </SwiperSlide>
-        <SwiperSlide>
-          <RecipesPage
-            apiKey={settings?.openaiApiKey || ''}
-            aiProvider={settings?.aiProvider || 'openai'}
-            azureEndpoint={settings?.azureEndpoint || ''}
-            azureDeployment={settings?.azureDeployment || ''}
-            openaiModel={settings?.openaiModel || 'gpt-4o-mini'}
-          />
-        </SwiperSlide>
+        {enabledPages.map((id) => (
+          <SwiperSlide key={id}>{renderPage(id)}</SwiperSlide>
+        ))}
       </Swiper>
 
       {/* Bottom navigation bar */}
@@ -186,7 +216,7 @@ function AppContent() {
           <ChevronLeft size={18} />
         </button>
         <div className="bg-black/40 backdrop-blur-sm rounded-full px-3 py-1.5 text-xs font-medium">
-          {PAGE_LABELS[activeIndex] || ''}
+          {pageLabels[activeIndex] || ''}
         </div>
         <button
           onClick={() => swiperRef.current?.slideNext()}

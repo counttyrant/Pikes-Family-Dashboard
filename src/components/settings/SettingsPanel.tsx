@@ -40,8 +40,15 @@ import {
   Palette,
   Shield,
   LogOut,
+  LayoutGrid,
+  GripVertical,
+  Eye,
+  EyeOff,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { ALL_PAGES, DEFAULT_PAGE_ORDER } from '../../App';
 
 /* -------------------------------------------------------------------------- */
 /*  Helpers                                                                   */
@@ -1134,6 +1141,95 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                 🔊 Test Voice
               </button>
             </div>
+          </Section>
+
+          {/* ---- Pages ---- */}
+          <Section title="Pages" icon={<LayoutGrid size={16} className="text-indigo-400" />}>
+            <p className="text-xs text-white/40 mb-3">
+              Enable/disable pages and drag to reorder. At least one page must remain enabled.
+            </p>
+            {(() => {
+              const enabled: string[] = settings?.enabledPages ?? DEFAULT_PAGE_ORDER;
+              // Build full list: enabled pages in order, then disabled ones
+              const disabled = ALL_PAGES.map(p => p.id).filter(id => !enabled.includes(id));
+              const ordered = [...enabled, ...disabled];
+
+              const toggle = (id: string) => {
+                const current = settings?.enabledPages ?? [...DEFAULT_PAGE_ORDER];
+                if (current.includes(id)) {
+                  if (current.length <= 1) return; // keep at least one
+                  save({ enabledPages: current.filter(p => p !== id) });
+                } else {
+                  save({ enabledPages: [...current, id] });
+                }
+              };
+
+              const moveUp = (id: string) => {
+                const current = [...(settings?.enabledPages ?? DEFAULT_PAGE_ORDER)];
+                const idx = current.indexOf(id);
+                if (idx <= 0) return;
+                [current[idx - 1], current[idx]] = [current[idx], current[idx - 1]];
+                save({ enabledPages: current });
+              };
+
+              const moveDown = (id: string) => {
+                const current = [...(settings?.enabledPages ?? DEFAULT_PAGE_ORDER)];
+                const idx = current.indexOf(id);
+                if (idx < 0 || idx >= current.length - 1) return;
+                [current[idx], current[idx + 1]] = [current[idx + 1], current[idx]];
+                save({ enabledPages: current });
+              };
+
+              return (
+                <div className="space-y-1">
+                  {ordered.map((id) => {
+                    const page = ALL_PAGES.find(p => p.id === id);
+                    if (!page) return null;
+                    const isEnabled = enabled.includes(id);
+                    const enabledIdx = enabled.indexOf(id);
+                    return (
+                      <div
+                        key={id}
+                        className={`flex items-center gap-2 px-2 py-2 rounded-lg transition-colors ${
+                          isEnabled ? 'bg-white/5' : 'bg-white/[0.02] opacity-50'
+                        }`}
+                      >
+                        <GripVertical size={14} className="text-white/30 shrink-0" />
+                        <span className="flex-1 text-sm text-white/80">{page.label}</span>
+                        {isEnabled && (
+                          <div className="flex gap-0.5">
+                            <button
+                              onClick={() => moveUp(id)}
+                              disabled={enabledIdx === 0}
+                              className="p-1 rounded hover:bg-white/10 disabled:opacity-20 transition-colors"
+                            >
+                              <ArrowUp size={12} />
+                            </button>
+                            <button
+                              onClick={() => moveDown(id)}
+                              disabled={enabledIdx === enabled.length - 1}
+                              className="p-1 rounded hover:bg-white/10 disabled:opacity-20 transition-colors"
+                            >
+                              <ArrowDown size={12} />
+                            </button>
+                          </div>
+                        )}
+                        <button
+                          onClick={() => toggle(id)}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            isEnabled
+                              ? 'text-emerald-400 hover:bg-emerald-500/20'
+                              : 'text-white/30 hover:bg-white/10'
+                          }`}
+                        >
+                          {isEnabled ? <Eye size={14} /> : <EyeOff size={14} />}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </Section>
 
           {/* ---- About ---- */}

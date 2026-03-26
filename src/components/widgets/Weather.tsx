@@ -74,7 +74,7 @@ export function Weather({ apiKey, location }: WeatherProps) {
   const detail = selectedDay !== null ? data.forecast[selectedDay] : null;
 
   return (
-    <div className="flex flex-col gap-4 h-full">
+    <div className="flex flex-col gap-4 h-full overflow-y-auto">
       {/* Current weather */}
       <div className="flex items-center gap-4">
         <img
