@@ -21,7 +21,7 @@ import { db } from './db'
 import { getSettings } from './services/storage'
 import { initCloudSync } from './services/cloudSync'
 import type { DashboardSettings } from './types'
-import { Maximize, Minimize, Settings, ChevronLeft, ChevronRight, ImagePlay, X } from 'lucide-react'
+import { Maximize, Minimize, Settings, ChevronLeft, ChevronRight, ImagePlay, X, Home } from 'lucide-react'
 import { ALL_PAGES, DEFAULT_PAGE_ORDER } from './constants/pages'
 
 // Re-export for any other consumers
@@ -231,6 +231,13 @@ function AppContent() {
 
           {/* Bottom navigation bar */}
           <div className="fixed bottom-4 left-4 z-40 flex items-center gap-2">
+            <button
+              onClick={() => swiperRef.current?.slideTo(0)}
+              className="rounded-full bg-black/40 p-2.5 backdrop-blur-sm hover:bg-black/60 transition-colors"
+              title="Home"
+            >
+              <Home size={18} />
+            </button>
             <button
               onClick={() => swiperRef.current?.slidePrev()}
               className="rounded-full bg-black/40 p-2.5 backdrop-blur-sm hover:bg-black/60 transition-colors"
