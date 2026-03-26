@@ -5,8 +5,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/fu
  *
  * GET /api/immich-proxy?server=https://immich.example.com&path=/api/albums&apiKey=xxx
  *
- * The function fetches the given path from the Immich server with the API key
- * and returns the JSON response.
+ * Supports both JSON (album listings) and binary (thumbnails) responses.
  */
 app.http('immichProxy', {
   methods: ['GET'],
@@ -28,7 +27,6 @@ app.http('immichProxy', {
       }
 
       const url = `${server}${path}`;
-      context.log(`Immich proxy: ${url}`);
 
       const response = await fetch(url, {
         headers: { 'x-api-key': apiKey },
@@ -42,6 +40,21 @@ app.http('immichProxy', {
         };
       }
 
+      const contentType = response.headers.get('content-type') || '';
+
+      // Binary response (images, thumbnails)
+      if (contentType.startsWith('image/') || contentType.startsWith('application/octet')) {
+        const buffer = await response.arrayBuffer();
+        return {
+          body: Buffer.from(buffer),
+          headers: {
+            'Content-Type': contentType,
+            'Cache-Control': 'public, max-age=86400',
+          },
+        };
+      }
+
+      // JSON response (album listings, metadata)
       const data = await response.json();
       return {
         jsonBody: data,

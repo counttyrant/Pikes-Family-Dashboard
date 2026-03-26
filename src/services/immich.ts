@@ -33,10 +33,16 @@ export async function fetchImmichAlbumPhotos(
   try {
     const album = await proxyFetch(serverUrl, apiKey, `/api/albums/${albumId}`);
     const url = serverUrl.replace(/\/+$/, '');
-    // Thumbnail URLs are loaded via <img src> which doesn't need CORS
+    // Route thumbnails through proxy too — Immich requires x-api-key header for images
     return (album.assets ?? []).map(
-      (asset: { id: string }) =>
-        `${url}/api/assets/${asset.id}/thumbnail?size=preview&key=${apiKey}`
+      (asset: { id: string }) => {
+        const params = new URLSearchParams({
+          server: url,
+          path: `/api/assets/${asset.id}/thumbnail?size=preview`,
+          apiKey,
+        });
+        return `${PROXY_BASE}?${params}`;
+      }
     );
   } catch (error) {
     console.warn('Failed to fetch Immich album photos:', error);
