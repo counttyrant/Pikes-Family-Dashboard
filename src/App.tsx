@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard'
 import ChoreChart from './pages/ChoreChart'
 import ShoppingNotes from './pages/ShoppingNotes'
 import ActivitiesPage from './pages/ActivitiesPage'
+import RecipesPage from './pages/RecipesPage'
 import { SettingsPanel } from './components/settings/SettingsPanel'
 import { AiAssistant } from './components/ai/AiAssistant'
 import { PhotoSlideshow } from './components/widgets/PhotoSlideshow'
@@ -21,7 +22,7 @@ import { initCloudSync } from './services/cloudSync'
 import type { DashboardSettings } from './types'
 import { Maximize, Minimize, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
 
-const PAGE_LABELS = ['Dashboard', 'Chores', 'Shopping', 'Activities'];
+const PAGE_LABELS = ['Dashboard', 'Chores', 'Shopping', 'Activities', 'Recipes'];
 
 
 function AppContent() {
@@ -164,6 +165,15 @@ function AppContent() {
         </SwiperSlide>
         <SwiperSlide>
           <ActivitiesPage />
+        </SwiperSlide>
+        <SwiperSlide>
+          <RecipesPage
+            apiKey={settings?.openaiApiKey || ''}
+            aiProvider={settings?.aiProvider || 'openai'}
+            azureEndpoint={settings?.azureEndpoint || ''}
+            azureDeployment={settings?.azureDeployment || ''}
+            openaiModel={settings?.openaiModel || 'gpt-4o-mini'}
+          />
         </SwiperSlide>
       </Swiper>
 

@@ -13,6 +13,7 @@ import type {
   CountdownEvent,
   GoogleUser,
   LocalCalendarEvent,
+  Recipe,
 } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -386,4 +387,25 @@ export async function updateLocalEvent(
 export async function deleteLocalEvent(id: string): Promise<void> {
   await db.localEvents.delete(id);
   deleteFromCloud('localEvents', id).catch(() => {});
+}
+
+// ---------------------------------------------------------------------------
+// Recipes
+// ---------------------------------------------------------------------------
+
+export async function getRecipes(): Promise<Recipe[]> {
+  return db.recipes.orderBy('addedAt').reverse().toArray();
+}
+
+export async function addRecipe(recipe: Omit<Recipe, 'id' | 'addedAt'>): Promise<string> {
+  const id = crypto.randomUUID();
+  const doc = { ...recipe, id, addedAt: new Date() };
+  await db.recipes.put(doc);
+  syncToCloud('recipes', { ...doc, addedAt: doc.addedAt.toISOString() }).catch(() => {});
+  return id;
+}
+
+export async function deleteRecipe(id: string): Promise<void> {
+  await db.recipes.delete(id);
+  deleteFromCloud('recipes', id).catch(() => {});
 }

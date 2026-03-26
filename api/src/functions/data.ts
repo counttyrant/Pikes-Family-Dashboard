@@ -15,6 +15,7 @@ const VALID_COLLECTIONS = [
   'widgetTodos',
   'widgetNotes',
   'localStorage',
+  'recipes',
 ];
 
 // GET /api/data?collection=settings

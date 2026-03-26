@@ -206,6 +206,11 @@ export async function saveAllToCloud(): Promise<boolean> {
     for (const key of WIDGET_KEYS) {
       await syncLocalStorageToCloud(key).catch(() => {});
     }
+    // Sync recipes
+    const recipes = await db.recipes.toArray();
+    for (const recipe of recipes) {
+      await syncToCloud('recipes', { ...recipe, addedAt: recipe.addedAt instanceof Date ? recipe.addedAt.toISOString() : recipe.addedAt }).catch(() => {});
+    }
     return true;
   } catch {
     return false;
@@ -218,13 +223,19 @@ export async function saveAllToCloud(): Promise<boolean> {
 export async function loadAllFromCloud(): Promise<boolean> {
   try {
     const cloudSettings = await pullOneFromCloud('settings', 'main');
+    const { db } = await import('../db');
     if (cloudSettings) {
       const clean = stripCosmosMeta(cloudSettings);
-      const { db } = await import('../db');
       await db.settings.put({ ...clean, id: 'main' } as never);
     }
     for (const key of WIDGET_KEYS) {
       await pullLocalStorageFromCloud(key).catch(() => {});
+    }
+    // Sync recipes from cloud
+    const cloudRecipes = await pullFromCloud('recipes');
+    for (const cr of cloudRecipes) {
+      const clean = stripCosmosMeta(cr);
+      await db.recipes.put({ ...clean, addedAt: new Date(clean.addedAt as string) } as never);
     }
     return true;
   } catch {

@@ -221,3 +221,14 @@ export interface CountdownEvent {
   date: Date;
   color: string;
 }
+
+export interface Recipe {
+  id: string;
+  title: string;
+  ingredients: string[];
+  instructions: string;
+  prepTime?: string;
+  cookTime?: string;
+  servings?: string;
+  addedAt: Date;
+}

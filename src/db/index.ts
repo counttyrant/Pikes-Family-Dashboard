@@ -12,6 +12,7 @@ import type {
   CountdownEvent,
   GoogleUser,
   LocalCalendarEvent,
+  Recipe,
 } from '../types';
 
 class DashboardDB extends Dexie {
@@ -27,6 +28,7 @@ class DashboardDB extends Dexie {
   countdownEvents!: Table<CountdownEvent, string>;
   authUser!: Table<GoogleUser, string>;
   localEvents!: Table<LocalCalendarEvent, string>;
+  recipes!: Table<Recipe, string>;
 
   constructor() {
     super('PikesFamilyDashboard');
@@ -57,6 +59,7 @@ class DashboardDB extends Dexie {
       countdownEvents: 'id, date',
       authUser: 'email',
       localEvents: 'id, start',
+      recipes: 'id, addedAt',
     });
   }
 }
