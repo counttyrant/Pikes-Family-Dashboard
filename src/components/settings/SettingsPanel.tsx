@@ -814,23 +814,77 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
 
           {/* ---- AI Assistant ---- */}
           <Section title="AI Assistant" icon={<Bot size={16} className="text-teal-400" />}>
+            {/* Provider toggle */}
+            <div className="flex flex-col gap-1 mb-3">
+              <span className="text-xs text-white/60 font-medium">Provider</span>
+              <div className="flex gap-2">
+                {(['openai', 'azure-openai'] as const).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => save({ aiProvider: p })}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      (settings.aiProvider || 'openai') === p
+                        ? 'bg-teal-500/30 text-teal-300 ring-1 ring-teal-400/40'
+                        : 'bg-white/5 text-white/50 hover:bg-white/10'
+                    }`}
+                  >
+                    {p === 'openai' ? 'OpenAI' : 'Azure OpenAI'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <InputField
-              label="OpenAI API Key"
+              label={(settings.aiProvider || 'openai') === 'azure-openai' ? 'Azure API Key' : 'OpenAI API Key'}
               value={settings.openaiApiKey}
               onChange={(v) => save({ openaiApiKey: v })}
-              placeholder="sk-..."
+              placeholder={(settings.aiProvider || 'openai') === 'azure-openai' ? 'Your Azure OpenAI key' : 'sk-...'}
             />
+
+            {(settings.aiProvider || 'openai') === 'azure-openai' && (
+              <>
+                <InputField
+                  label="Azure Endpoint"
+                  value={settings.azureEndpoint || ''}
+                  onChange={(v) => save({ azureEndpoint: v })}
+                  placeholder="https://your-resource.openai.azure.com"
+                />
+                <InputField
+                  label="Deployment Name"
+                  value={settings.azureDeployment || ''}
+                  onChange={(v) => save({ azureDeployment: v })}
+                  placeholder="gpt-4o-mini"
+                />
+              </>
+            )}
+
             <p className="text-xs text-white/40">
-              Uses <strong className="text-white/60">gpt-4o-mini</strong> for cost
-              efficiency. Get a key at{' '}
-              <a
-                href="https://platform.openai.com/api-keys"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 underline hover:text-blue-300"
-              >
-                platform.openai.com
-              </a>
+              {(settings.aiProvider || 'openai') === 'azure-openai' ? (
+                <>
+                  Uses your Azure OpenAI deployment. Find keys in the{' '}
+                  <a
+                    href="https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 underline hover:text-blue-300"
+                  >
+                    Azure Portal
+                  </a>
+                </>
+              ) : (
+                <>
+                  Uses <strong className="text-white/60">gpt-4o-mini</strong> for cost
+                  efficiency. Get a key at{' '}
+                  <a
+                    href="https://platform.openai.com/api-keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 underline hover:text-blue-300"
+                  >
+                    platform.openai.com
+                  </a>
+                </>
+              )}
             </p>
           </Section>
 

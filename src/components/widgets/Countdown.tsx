@@ -47,8 +47,12 @@ export function Countdown({ events }: CountdownProps) {
           <div
             key={evt.id}
             className="flex flex-col items-center gap-2 rounded-xl px-5 py-4
-                       bg-white/5 border border-white/10 shrink-0 min-w-[120px]
+                       border shrink-0 min-w-[120px]
                        transition-transform active:scale-95"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--theme-accent, #3b82f6) 8%, transparent)',
+              borderColor: 'color-mix(in srgb, var(--theme-accent, #3b82f6) 15%, transparent)',
+            }}
           >
             {/* Accent bar */}
             <div

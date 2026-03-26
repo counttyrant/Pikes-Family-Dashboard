@@ -161,6 +161,8 @@ export interface GoogleCalendarInfo {
 
 /* ── Settings ─────────────────────────────────────────────────────────── */
 
+export type AiProvider = 'openai' | 'azure-openai';
+
 export interface DashboardSettings {
   id: string;
   weatherApiKey: string;
@@ -170,6 +172,9 @@ export interface DashboardSettings {
   nightModeEnd: string;
   screenSaverTimeout: number;
   openaiApiKey: string;
+  aiProvider: AiProvider;
+  azureEndpoint: string;
+  azureDeployment: string;
   layouts: WidgetLayout[];
   theme: ThemeName;
   photoSource: PhotoSource;

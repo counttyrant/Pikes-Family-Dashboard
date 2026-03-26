@@ -116,10 +116,12 @@ export function Calendar({ events, accessToken }: CalendarProps) {
               key={key}
               className={`
                 flex flex-col rounded-lg p-2 min-h-0
-                ${today ? 'ring-1' : 'bg-white/5'}
+                ${today ? 'ring-1' : ''}
               `}
               style={{
-                backgroundColor: today ? 'color-mix(in srgb, var(--theme-accent, #3b82f6) 15%, transparent)' : undefined,
+                backgroundColor: today
+                  ? 'color-mix(in srgb, var(--theme-accent, #3b82f6) 15%, transparent)'
+                  : 'color-mix(in srgb, var(--theme-accent, #3b82f6) 5%, transparent)',
                 ...(today ? { '--tw-ring-color': 'color-mix(in srgb, var(--theme-accent, #3b82f6) 40%, transparent)' } as React.CSSProperties : {}),
               }}
             >

@@ -149,7 +149,12 @@ function AppContent() {
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       {/* AI Assistant */}
-      <AiAssistant apiKey={settings?.openaiApiKey || ''} />
+      <AiAssistant
+        apiKey={settings?.openaiApiKey || ''}
+        aiProvider={settings?.aiProvider || 'openai'}
+        azureEndpoint={settings?.azureEndpoint || ''}
+        azureDeployment={settings?.azureDeployment || ''}
+      />
     </div>
   )
 }

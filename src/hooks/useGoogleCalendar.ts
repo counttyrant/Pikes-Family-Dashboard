@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { fetchCalendarEvents } from '../services/googleCalendar'
 import type { CalendarEvent } from '../types'
 import { startOfWeek, endOfWeek } from 'date-fns'
@@ -11,6 +11,10 @@ export function useGoogleCalendar(
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
+
+  // Stabilize calendarIds to avoid re-creating refresh on every render
+  const idsKey = JSON.stringify(calendarIds)
+  const stableIds = useMemo(() => calendarIds, [idsKey])
 
   const refresh = useCallback(async () => {
     if (!token) {
@@ -26,34 +30,44 @@ export function useGoogleCalendar(
       const weekStart = startOfWeek(now, { weekStartsOn: 1 })
       const weekEnd = endOfWeek(now, { weekStartsOn: 1 })
 
-      // Fetch events from all selected calendars in parallel
-      const ids = calendarIds.length > 0 ? calendarIds : ['primary']
+      const ids = stableIds.length > 0 ? stableIds : ['primary']
       const results = await Promise.allSettled(
         ids.map((id) => fetchCalendarEvents(token, weekStart, weekEnd, id)),
       )
 
       const allEvents: CalendarEvent[] = []
+      const errors: string[] = []
       for (const result of results) {
         if (result.status === 'fulfilled') {
           allEvents.push(...result.value)
+        } else {
+          errors.push(result.reason?.message ?? 'Unknown error')
         }
       }
 
-      // Deduplicate by event id
-      const seen = new Set<string>()
-      const unique = allEvents.filter((e) => {
-        if (seen.has(e.id)) return false
-        seen.add(e.id)
-        return true
-      })
+      // Only update events if we got at least some results,
+      // or if ALL calendars succeeded (even if empty)
+      if (allEvents.length > 0 || errors.length === 0) {
+        const seen = new Set<string>()
+        const unique = allEvents.filter((e) => {
+          if (seen.has(e.id)) return false
+          seen.add(e.id)
+          return true
+        })
+        setEvents(unique)
+      }
 
-      setEvents(unique)
+      // Report errors but don't clear events
+      if (errors.length > 0) {
+        setError(errors.join('; '))
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to fetch calendar')
+      // Don't clear events on error — keep showing stale data
     } finally {
       setLoading(false)
     }
-  }, [token, calendarIds])
+  }, [token, stableIds])
 
   useEffect(() => {
     refresh()

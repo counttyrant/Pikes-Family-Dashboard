@@ -8,6 +8,9 @@ interface Message {
 
 interface AiAssistantProps {
   apiKey: string;
+  aiProvider?: 'openai' | 'azure-openai';
+  azureEndpoint?: string;
+  azureDeployment?: string;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -25,7 +28,7 @@ function getSpeechRecognition(): (new () => SpeechRecognition) | null {
 /*  Component                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export function AiAssistant({ apiKey }: AiAssistantProps) {
+export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '', azureDeployment = '' }: AiAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -45,7 +48,7 @@ export function AiAssistant({ apiKey }: AiAssistantProps) {
     if (isOpen) inputRef.current?.focus();
   }, [isOpen]);
 
-  /* -- Send message to OpenAI ------------------------------------------- */
+  /* -- Send message to AI ------------------------------------------------ */
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || !apiKey || loading) return;
@@ -57,20 +60,38 @@ export function AiAssistant({ apiKey }: AiAssistantProps) {
     setLoading(true);
 
     try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      let url: string;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (aiProvider === 'azure-openai' && azureEndpoint && azureDeployment) {
+        // Azure OpenAI: endpoint/openai/deployments/{deployment}/chat/completions?api-version=...
+        const base = azureEndpoint.replace(/\/$/, '');
+        url = `${base}/openai/deployments/${azureDeployment}/chat/completions?api-version=2024-08-01-preview`;
+        headers['api-key'] = apiKey;
+      } else {
+        url = 'https://api.openai.com/v1/chat/completions';
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
+
+      const body: Record<string, unknown> = {
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          ...updated.map((m) => ({ role: m.role, content: m.content })),
+        ],
+        max_tokens: 500,
+      };
+
+      // Only include model for OpenAI (Azure uses deployment name)
+      if (aiProvider !== 'azure-openai') {
+        body.model = 'gpt-4o-mini';
+      }
+
+      const res = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            ...updated.map((m) => ({ role: m.role, content: m.content })),
-          ],
-          max_tokens: 500,
-        }),
+        headers,
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) throw new Error(`API error: ${res.status}`);
