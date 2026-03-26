@@ -16,6 +16,7 @@ interface AiAssistantProps {
   ttsVoiceName?: string;
   ttsRate?: number;
   ttsPitch?: number;
+  openaiTtsApiKey?: string;
   openaiTtsVoice?: string;
   openaiTtsModel?: string;
 }
@@ -37,7 +38,7 @@ function getSpeechRecognition(): (new () => SpeechRecognition) | null {
 /*  Component                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '', azureDeployment = '', openaiModel = 'gpt-4o-mini', ttsEngine = 'openai', ttsVoiceName = '', ttsRate = 0.95, ttsPitch = 1.1, openaiTtsVoice = 'nova', openaiTtsModel = 'tts-1' }: AiAssistantProps) {
+export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '', azureDeployment = '', openaiModel = 'gpt-4o-mini', ttsEngine = 'openai', ttsVoiceName = '', ttsRate = 0.95, ttsPitch = 1.1, openaiTtsApiKey = '', openaiTtsVoice = 'nova', openaiTtsModel = 'tts-1' }: AiAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -77,23 +78,75 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
     }
     window.speechSynthesis?.cancel();
 
-    // Use OpenAI TTS if configured
-    if (ttsEngine === 'openai' && apiKey && aiProvider !== 'azure-openai') {
+    // Use OpenAI TTS if configured — separate TTS key lets Azure chat users still use OpenAI voices
+    const ttsKey = openaiTtsApiKey || (aiProvider !== 'azure-openai' ? apiKey : '');
+    if (ttsEngine === 'openai' && ttsKey) {
       try {
         const res = await fetch('https://api.openai.com/v1/audio/speech', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            'Authorization': `Bearer ${ttsKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             model: openaiTtsModel || 'tts-1',
-            input: clean.slice(0, 4096), // API limit
+            input: clean.slice(0, 4096),
             voice: openaiTtsVoice || 'nova',
             speed: ttsRate,
           }),
         });
-        if (res.ok) {
+        if (!res.ok) {
+          console.warn('OpenAI TTS failed, falling back to browser:', res.status);
+        } else if (res.body && typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported('audio/mpeg')) {
+          // Stream audio via MediaSource — starts playing in ~200ms
+          const mediaSource = new MediaSource();
+          const audio = new Audio();
+          audioRef.current = audio;
+          audio.src = URL.createObjectURL(mediaSource);
+
+          await new Promise<void>((resolve, reject) => {
+            mediaSource.addEventListener('sourceopen', async () => {
+              try {
+                const sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg');
+                const reader = res.body!.getReader();
+                let first = true;
+
+                const pump = async (): Promise<void> => {
+                  const { done, value } = await reader.read();
+                  if (done) {
+                    if (mediaSource.readyState === 'open') {
+                      if (sourceBuffer.updating) {
+                        await new Promise(r => sourceBuffer.addEventListener('updateend', r, { once: true }));
+                      }
+                      mediaSource.endOfStream();
+                    }
+                    resolve();
+                    return;
+                  }
+
+                  if (sourceBuffer.updating) {
+                    await new Promise(r => sourceBuffer.addEventListener('updateend', r, { once: true }));
+                  }
+                  sourceBuffer.appendBuffer(value);
+                  await new Promise(r => sourceBuffer.addEventListener('updateend', r, { once: true }));
+
+                  // Start playback as soon as first chunk is buffered
+                  if (first) {
+                    first = false;
+                    audio.play().catch(() => {});
+                  }
+                  return pump();
+                };
+
+                pump();
+              } catch (e) {
+                reject(e);
+              }
+            }, { once: true });
+          });
+          return;
+        } else if (res.ok) {
+          // Fallback: non-streaming (Firefox, etc.)
           const blob = await res.blob();
           const url = URL.createObjectURL(blob);
           const audio = new Audio(url);
@@ -102,7 +155,6 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
           audio.play();
           return;
         }
-        console.warn('OpenAI TTS failed, falling back to browser:', res.status);
       } catch (err) {
         console.warn('OpenAI TTS error, falling back to browser:', err);
       }

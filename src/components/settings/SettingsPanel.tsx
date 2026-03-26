@@ -1134,6 +1134,20 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
 
               {(settings.ttsEngine || 'openai') === 'openai' ? (
                 <>
+                  {/* TTS API Key — separate from chat key for Azure users */}
+                  <div>
+                    <label className="text-xs text-white/50 mb-1 block">
+                      OpenAI TTS API Key {settings.aiProvider === 'azure-openai' ? '(required — Azure keys don\'t work with OpenAI TTS)' : '(optional — uses main key if empty)'}
+                    </label>
+                    <input
+                      type="password"
+                      value={settings.openaiTtsApiKey || ''}
+                      onChange={(e) => save({ openaiTtsApiKey: e.target.value })}
+                      placeholder={settings.aiProvider === 'azure-openai' ? 'sk-... from platform.openai.com' : 'Leave empty to use main API key'}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-teal-500/50"
+                    />
+                  </div>
+
                   {/* OpenAI voice picker */}
                   <div>
                     <label className="text-xs text-white/50 mb-1 block">Voice</label>
@@ -1185,14 +1199,15 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                     <input type="range" min="0.5" max="2" step="0.05" value={settings.ttsRate ?? 0.95} onChange={(e) => save({ ttsRate: parseFloat(e.target.value) })} className="w-full accent-teal-500" />
                   </div>
 
-                  {/* Test button — uses OpenAI TTS */}
+                  {/* Test button — uses TTS key or main key */}
                   <button
                     onClick={async () => {
-                      if (!settings.openaiApiKey) return;
+                      const ttsKey = settings.openaiTtsApiKey || (settings.aiProvider !== 'azure-openai' ? settings.openaiApiKey : '');
+                      if (!ttsKey) { alert('Enter an OpenAI TTS API key first'); return; }
                       try {
                         const res = await fetch('https://api.openai.com/v1/audio/speech', {
                           method: 'POST',
-                          headers: { 'Authorization': `Bearer ${settings.openaiApiKey}`, 'Content-Type': 'application/json' },
+                          headers: { 'Authorization': `Bearer ${ttsKey}`, 'Content-Type': 'application/json' },
                           body: JSON.stringify({ model: settings.openaiTtsModel || 'tts-1', input: "Hi! I'm your family assistant. How can I help today?", voice: settings.openaiTtsVoice || 'nova', speed: settings.ttsRate ?? 0.95 }),
                         });
                         if (res.ok) {
@@ -1202,7 +1217,7 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                           audio.onended = () => URL.revokeObjectURL(url);
                           audio.play();
                         } else {
-                          alert(`TTS failed: ${res.status} — check your OpenAI API key`);
+                          alert(`TTS failed: ${res.status} — make sure you're using an OpenAI key from platform.openai.com (not Azure)`);
                         }
                       } catch (err) {
                         alert(`TTS error: ${err}`);

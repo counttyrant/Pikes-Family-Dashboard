@@ -262,6 +262,7 @@ function AppContent() {
             ttsVoiceName={settings?.ttsVoiceName || ''}
             ttsRate={settings?.ttsRate ?? 0.95}
             ttsPitch={settings?.ttsPitch ?? 1.1}
+            openaiTtsApiKey={settings?.openaiTtsApiKey || ''}
             openaiTtsVoice={settings?.openaiTtsVoice || 'nova'}
             openaiTtsModel={settings?.openaiTtsModel || 'tts-1'}
           />

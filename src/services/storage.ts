@@ -53,6 +53,7 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   ttsVoiceName: '',
   ttsRate: 0.95,
   ttsPitch: 1.1,
+  openaiTtsApiKey: '',
   openaiTtsVoice: 'nova',
   openaiTtsModel: 'tts-1',
   enabledPages: ['dashboard', 'chores', 'shopping', 'activities', 'recipes', 'jellyfin'],

@@ -196,6 +196,7 @@ export interface DashboardSettings {
   ttsVoiceName: string;   // browser voice name (empty = auto)
   ttsRate: number;        // 0.5–2.0
   ttsPitch: number;       // 0.5–2.0
+  openaiTtsApiKey: string; // separate OpenAI key just for TTS (useful for Azure chat users)
   openaiTtsVoice: string; // OpenAI voice: alloy, echo, fable, onyx, nova, shimmer
   openaiTtsModel: string; // tts-1 or tts-1-hd
   enabledPages: string[]; // ordered list of enabled page IDs
