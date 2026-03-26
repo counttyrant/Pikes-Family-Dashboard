@@ -1,9 +1,43 @@
+/* ── Identity ─────────────────────────────────────────────────────────── */
+
+export interface GoogleUser {
+  email: string;
+  name: string;
+  picture: string;
+  accessToken: string;
+  expiresAt: number;
+}
+
+/* ── Family ───────────────────────────────────────────────────────────── */
+
 export interface FamilyMember {
   id: string;
   name: string;
   avatar: string;
   color: string;
 }
+
+/* ── Calendar ─────────────────────────────────────────────────────────── */
+
+export type EventIcon =
+  | 'playtime'
+  | 'bedtime'
+  | 'dinner'
+  | 'movies'
+  | 'cleanup'
+  | 'school'
+  | 'sports'
+  | 'birthday'
+  | 'doctor'
+  | 'music'
+  | 'art'
+  | 'bath'
+  | 'homework'
+  | 'reading'
+  | 'grocery'
+  | 'travel'
+  | 'work'
+  | 'custom';
 
 export interface CalendarEvent {
   id: string;
@@ -13,8 +47,22 @@ export interface CalendarEvent {
   calendarId: string;
   color: string;
   imageUrl?: string;
+  icon?: EventIcon;
+  allDay: boolean;
+  isLocal?: boolean;
+}
+
+export interface LocalCalendarEvent {
+  id: string;
+  title: string;
+  start: Date;
+  end: Date;
+  color: string;
+  icon: EventIcon;
   allDay: boolean;
 }
+
+/* ── Chores ───────────────────────────────────────────────────────────── */
 
 export type ChoreRecurrence = 'daily' | 'weekly' | 'monthly' | 'none';
 
@@ -48,6 +96,10 @@ export interface StickerRecord {
   points: number;
 }
 
+/* ── Photos ───────────────────────────────────────────────────────────── */
+
+export type PhotoSource = 'local' | 'immich' | 'google-photos' | 'unsplash';
+
 export interface Photo {
   id: string;
   blob: Blob;
@@ -62,6 +114,33 @@ export interface EventImage {
   name: string;
 }
 
+/* ── Themes ───────────────────────────────────────────────────────────── */
+
+export type ThemeName =
+  | 'ocean'
+  | 'forest'
+  | 'sunset'
+  | 'purple'
+  | 'rose'
+  | 'slate'
+  | 'midnight'
+  | 'emerald';
+
+export interface ThemeDefinition {
+  name: ThemeName;
+  label: string;
+  emoji: string;
+  bgFrom: string;
+  bgVia: string;
+  bgTo: string;
+  accent: string;
+  accentLight: string;
+  card: string;
+  cardHover: string;
+}
+
+/* ── Layout ───────────────────────────────────────────────────────────── */
+
 export interface WidgetLayout {
   i: string;
   x: number;
@@ -69,6 +148,8 @@ export interface WidgetLayout {
   w: number;
   h: number;
 }
+
+/* ── Settings ─────────────────────────────────────────────────────────── */
 
 export interface DashboardSettings {
   id: string;
@@ -80,7 +161,16 @@ export interface DashboardSettings {
   screenSaverTimeout: number;
   openaiApiKey: string;
   layouts: WidgetLayout[];
+  theme: ThemeName;
+  photoSource: PhotoSource;
+  immichUrl: string;
+  immichApiKey: string;
+  immichAlbumId: string;
+  googlePhotosAlbumId: string;
+  allowedEmails: string[];
 }
+
+/* ── Misc ─────────────────────────────────────────────────────────────── */
 
 export interface ShoppingItem {
   id: string;

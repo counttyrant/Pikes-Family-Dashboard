@@ -21,9 +21,10 @@ const DEFAULT_LAYOUTS: WidgetLayout[] = [
 
 interface DashboardProps {
   settings: DashboardSettings | null
+  accessToken?: string | null
 }
 
-export default function Dashboard({ settings }: DashboardProps) {
+export default function Dashboard({ settings, accessToken }: DashboardProps) {
   const [editMode, setEditMode] = useState(false)
 
   const countdownEvents = useLiveQuery(() => db.countdownEvents.orderBy('date').toArray()) ?? []
@@ -86,7 +87,7 @@ export default function Dashboard({ settings }: DashboardProps) {
         </div>
         <div key="calendar">
           <WidgetContainer title="Calendar" className="h-full" editMode={editMode}>
-            <Calendar events={calendarEvents} />
+            <Calendar events={calendarEvents} accessToken={accessToken} />
           </WidgetContainer>
         </div>
       </GridLayout>

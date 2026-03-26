@@ -11,8 +11,11 @@ import {
   addCountdownEvent,
   deleteCountdownEvent,
 } from '../../services/storage';
-import { signIn, signOut, initGoogleAuth } from '../../services/googleCalendar';
-import type { DashboardSettings } from '../../types';
+import type { DashboardSettings, PhotoSource, ThemeName } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
+import { fetchImmichAlbums } from '../../services/immich';
+import { fetchGooglePhotosAlbums } from '../../services/googlePhotos';
 import {
   Settings,
   X,
@@ -21,8 +24,6 @@ import {
   Plus,
   Trash2,
   Upload,
-  Link,
-  Unlink,
   Calendar,
   Cloud,
   Users,
@@ -32,6 +33,9 @@ import {
   Bot,
   Info,
   Camera,
+  Palette,
+  Shield,
+  LogOut,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -122,7 +126,6 @@ interface SettingsPanelProps {
 }
 
 export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelProps) {
-  // Support both controlled (via props) and self-managed mode
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
@@ -131,6 +134,9 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
     if (!isControlled) setInternalOpen(false);
   };
 
+  const { user, signOut } = useAuth();
+  const { theme, setTheme, themes } = useTheme();
+
   const [settings, setSettings] = useState<DashboardSettings | null>(null);
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberColor, setNewMemberColor] = useState('#3b82f6');
@@ -138,6 +144,9 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
   const [newCountdownTitle, setNewCountdownTitle] = useState('');
   const [newCountdownDate, setNewCountdownDate] = useState('');
   const [newCountdownColor, setNewCountdownColor] = useState('#3b82f6');
+  const [newAllowedEmail, setNewAllowedEmail] = useState('');
+  const [immichAlbums, setImmichAlbums] = useState<{ id: string; albumName: string; assetCount: number }[]>([]);
+  const [googleAlbums, setGoogleAlbums] = useState<{ id: string; title: string; mediaItemsCount: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
@@ -152,27 +161,6 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
   const save = async (patch: Partial<DashboardSettings>) => {
     await saveSettings(patch);
     setSettings((s) => (s ? { ...s, ...patch } : s));
-  };
-
-  /* -- Google Calendar ---------------------------------------------------- */
-
-  const handleGoogleConnect = async () => {
-    try {
-      const clientId = prompt('Enter your Google OAuth Client ID:');
-      if (!clientId) return;
-      await initGoogleAuth(clientId);
-      const token = await signIn();
-      await save({ googleToken: token });
-    } catch (e) {
-      console.error('Google auth failed:', e);
-    }
-  };
-
-  const handleGoogleDisconnect = async () => {
-    if (settings?.googleToken) {
-      await signOut(settings.googleToken);
-      await save({ googleToken: null });
-    }
   };
 
   /* -- Family Members ----------------------------------------------------- */
@@ -222,11 +210,41 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
     setNewCountdownColor('#3b82f6');
   };
 
+  /* -- Immich Albums ------------------------------------------------------ */
+
+  const handleFetchImmichAlbums = async () => {
+    if (!settings?.immichUrl || !settings?.immichApiKey) return;
+    const albums = await fetchImmichAlbums(settings.immichUrl, settings.immichApiKey);
+    setImmichAlbums(albums);
+  };
+
+  /* -- Google Photos Albums ----------------------------------------------- */
+
+  const handleFetchGoogleAlbums = async () => {
+    if (!user?.accessToken) return;
+    const albums = await fetchGooglePhotosAlbums(user.accessToken);
+    setGoogleAlbums(albums);
+  };
+
+  /* -- Allowed Emails ----------------------------------------------------- */
+
+  const handleAddAllowedEmail = () => {
+    if (!newAllowedEmail.trim() || !settings) return;
+    const updated = [...(settings.allowedEmails ?? []), newAllowedEmail.trim().toLowerCase()];
+    save({ allowedEmails: updated });
+    setNewAllowedEmail('');
+  };
+
+  const handleRemoveAllowedEmail = (email: string) => {
+    if (!settings) return;
+    const updated = (settings.allowedEmails ?? []).filter((e) => e !== email);
+    save({ allowedEmails: updated });
+  };
+
   if (!settings) return null;
 
   return (
     <>
-      {/* Self-managed gear button (only shown if not externally controlled) */}
       {!isControlled && (
         <button
           onClick={() => setInternalOpen(true)}
@@ -237,12 +255,10 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
         </button>
       )}
 
-      {/* Backdrop */}
       {open && (
         <div className="fixed inset-0 z-50 bg-black/40" onClick={handleClose} />
       )}
 
-      {/* Slide-in panel */}
       <div
         className={`fixed top-0 right-0 z-50 h-full w-[400px] bg-slate-900/95 backdrop-blur-xl border-l border-white/10 transform transition-transform duration-300 ease-in-out ${
           open ? 'translate-x-0' : 'translate-x-full'
@@ -262,27 +278,55 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
           </button>
         </div>
 
+        {/* User info bar */}
+        {user && (
+          <div className="flex items-center gap-3 p-4 border-b border-white/10">
+            <img src={user.picture} alt="" className="w-10 h-10 rounded-full" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{user.name}</p>
+              <p className="text-xs text-white/50 truncate">{user.email}</p>
+            </div>
+            <button
+              onClick={signOut}
+              className="flex items-center gap-1 px-3 py-2 text-xs bg-red-500/20 hover:bg-red-500/30 rounded-lg text-red-400 transition-colors"
+            >
+              <LogOut size={14} /> Sign Out
+            </button>
+          </div>
+        )}
+
         {/* Sections */}
         <div className="p-4 space-y-1">
+          {/* ---- Theme ---- */}
+          <Section title="Theme" icon={<Palette size={16} className="text-pink-400" />} defaultOpen>
+            <div className="grid grid-cols-4 gap-2">
+              {themes.map((t) => (
+                <button
+                  key={t.name}
+                  onClick={() => setTheme(t.name as ThemeName)}
+                  className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all ${
+                    theme === t.name ? 'ring-2 bg-white/10' : 'hover:bg-white/5'
+                  }`}
+                  style={{ '--tw-ring-color': t.accent } as React.CSSProperties}
+                >
+                  <div
+                    className="w-8 h-8 rounded-full"
+                    style={{ background: `linear-gradient(135deg, ${t.bgFrom}, ${t.accent}, ${t.bgTo})` }}
+                  />
+                  <span className="text-[0.6rem] text-white/70">{t.emoji} {t.label}</span>
+                </button>
+              ))}
+            </div>
+          </Section>
+
           {/* ---- Google Calendar ---- */}
           <Section title="Google Calendar" icon={<Calendar size={16} className="text-blue-400" />}>
-            {settings.googleToken ? (
+            {user ? (
               <div className="flex items-center gap-2">
-                <span className="text-sm text-green-400 flex-1">✓ Connected</span>
-                <button
-                  onClick={handleGoogleDisconnect}
-                  className="flex items-center gap-1 px-3 py-2 text-sm bg-red-500/20 hover:bg-red-500/30 rounded-lg text-red-400 transition-colors"
-                >
-                  <Unlink size={14} /> Disconnect
-                </button>
+                <span className="text-sm text-green-400 flex-1">✓ Connected as {user.email}</span>
               </div>
             ) : (
-              <button
-                onClick={handleGoogleConnect}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-400 transition-colors"
-              >
-                <Link size={14} /> Connect Google Calendar
-              </button>
+              <p className="text-sm text-white/50">Sign in to connect Google Calendar</p>
             )}
           </Section>
 
@@ -311,6 +355,163 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                 openweathermap.org
               </a>
             </p>
+          </Section>
+
+          {/* ---- Photos ---- */}
+          <Section title="Photos" icon={<ImageIcon size={16} className="text-emerald-400" />}>
+            {/* Source selector */}
+            <div className="space-y-2">
+              <span className="text-xs text-white/60">Photo Source</span>
+              <div className="grid grid-cols-2 gap-2">
+                {(['local', 'immich', 'google-photos', 'unsplash'] as PhotoSource[]).map((src) => (
+                  <button
+                    key={src}
+                    onClick={() => save({ photoSource: src })}
+                    className={`px-3 py-2 text-xs rounded-lg transition-all ${
+                      settings.photoSource === src
+                        ? 'bg-blue-500/30 text-blue-300 ring-1 ring-blue-400/40'
+                        : 'bg-white/5 text-white/60 hover:bg-white/10'
+                    }`}
+                  >
+                    {src === 'local' && '📁 Local'}
+                    {src === 'immich' && '📷 Immich'}
+                    {src === 'google-photos' && '🖼️ Google'}
+                    {src === 'unsplash' && '🌄 Unsplash'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Local photos upload */}
+            {settings.photoSource === 'local' && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-400 transition-colors"
+                >
+                  <Upload size={14} /> Upload Photos
+                </button>
+                {photos.length > 0 && (
+                  <div className="grid grid-cols-4 gap-2 mt-2">
+                    {photos.map((p) => {
+                      const url = URL.createObjectURL(p.blob);
+                      return (
+                        <div
+                          key={p.id}
+                          className="relative group aspect-square rounded-lg overflow-hidden"
+                        >
+                          <img
+                            src={url}
+                            alt={p.name}
+                            className="w-full h-full object-cover"
+                            onLoad={() => URL.revokeObjectURL(url)}
+                          />
+                          <button
+                            onClick={() => deletePhoto(p.id)}
+                            className="absolute top-1 right-1 p-1 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 size={12} className="text-red-400" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <p className="text-xs text-white/40">If no photos uploaded, beautiful landscapes will show.</p>
+              </>
+            )}
+
+            {/* Immich config */}
+            {settings.photoSource === 'immich' && (
+              <div className="space-y-3">
+                <InputField
+                  label="Server URL"
+                  value={settings.immichUrl}
+                  onChange={(v) => save({ immichUrl: v })}
+                  placeholder="https://immich.example.com"
+                />
+                <InputField
+                  label="API Key"
+                  value={settings.immichApiKey}
+                  onChange={(v) => save({ immichApiKey: v })}
+                  placeholder="Immich API key"
+                />
+                <button
+                  onClick={handleFetchImmichAlbums}
+                  className="px-4 py-2 text-sm bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-400 transition-colors"
+                >
+                  Load Albums
+                </button>
+                {immichAlbums.length > 0 && (
+                  <div className="space-y-1">
+                    {immichAlbums.map((a) => (
+                      <button
+                        key={a.id}
+                        onClick={() => save({ immichAlbumId: a.id })}
+                        className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all ${
+                          settings.immichAlbumId === a.id
+                            ? 'bg-blue-500/30 text-blue-300'
+                            : 'bg-white/5 text-white/60 hover:bg-white/10'
+                        }`}
+                      >
+                        {a.albumName} ({a.assetCount} photos)
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Google Photos config */}
+            {settings.photoSource === 'google-photos' && (
+              <div className="space-y-3">
+                {user ? (
+                  <>
+                    <button
+                      onClick={handleFetchGoogleAlbums}
+                      className="px-4 py-2 text-sm bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-400 transition-colors"
+                    >
+                      Load Albums
+                    </button>
+                    {googleAlbums.length > 0 && (
+                      <div className="space-y-1">
+                        {googleAlbums.map((a) => (
+                          <button
+                            key={a.id}
+                            onClick={() => save({ googlePhotosAlbumId: a.id })}
+                            className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all ${
+                              settings.googlePhotosAlbumId === a.id
+                                ? 'bg-blue-500/30 text-blue-300'
+                                : 'bg-white/5 text-white/60 hover:bg-white/10'
+                            }`}
+                          >
+                            {a.title} ({a.mediaItemsCount} items)
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-white/50">Sign in to access Google Photos</p>
+                )}
+              </div>
+            )}
+
+            {/* Unsplash info */}
+            {settings.photoSource === 'unsplash' && (
+              <p className="text-xs text-white/40">
+                Uses beautiful landscape photos. Set <code className="text-white/60">VITE_UNSPLASH_ACCESS_KEY</code> in your .env
+                for custom Unsplash photos, or enjoy the built-in curated collection.
+              </p>
+            )}
           </Section>
 
           {/* ---- Family Members ---- */}
@@ -347,7 +548,6 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
               ))}
             </div>
 
-            {/* Add new member */}
             <div className="space-y-2 pt-2">
               <div className="flex gap-2">
                 <input
@@ -396,50 +596,6 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                 </button>
               </div>
             </div>
-          </Section>
-
-          {/* ---- Photos ---- */}
-          <Section title="Photos" icon={<ImageIcon size={16} className="text-emerald-400" />}>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handlePhotoUpload}
-              className="hidden"
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-400 transition-colors"
-            >
-              <Upload size={14} /> Upload Photos
-            </button>
-            {photos.length > 0 && (
-              <div className="grid grid-cols-4 gap-2 mt-2">
-                {photos.map((p) => {
-                  const url = URL.createObjectURL(p.blob);
-                  return (
-                    <div
-                      key={p.id}
-                      className="relative group aspect-square rounded-lg overflow-hidden"
-                    >
-                      <img
-                        src={url}
-                        alt={p.name}
-                        className="w-full h-full object-cover"
-                        onLoad={() => URL.revokeObjectURL(url)}
-                      />
-                      <button
-                        onClick={() => deletePhoto(p.id)}
-                        className="absolute top-1 right-1 p-1 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Trash2 size={12} className="text-red-400" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </Section>
 
           {/* ---- Countdown Events ---- */}
@@ -516,6 +672,41 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
             />
           </Section>
 
+          {/* ---- Access Control ---- */}
+          <Section title="Access Control" icon={<Shield size={16} className="text-yellow-400" />}>
+            <p className="text-xs text-white/40 mb-2">
+              Restrict who can sign in. Leave empty to allow anyone with a Google account.
+            </p>
+            <div className="space-y-2">
+              {(settings.allowedEmails ?? []).map((email) => (
+                <div key={email} className="flex items-center gap-2 p-2 rounded-lg bg-white/5">
+                  <span className="flex-1 text-sm truncate">{email}</span>
+                  <button
+                    onClick={() => handleRemoveAllowedEmail(email)}
+                    className="p-1 hover:bg-red-500/20 rounded transition-colors"
+                  >
+                    <Trash2 size={14} className="text-red-400" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                value={newAllowedEmail}
+                onChange={(e) => setNewAllowedEmail(e.target.value)}
+                placeholder="email@example.com"
+                onKeyDown={(e) => e.key === 'Enter' && handleAddAllowedEmail()}
+                className="flex-1 rounded-lg bg-white/10 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none"
+              />
+              <button
+                onClick={handleAddAllowedEmail}
+                className="p-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg transition-colors"
+              >
+                <Plus size={18} className="text-blue-400" />
+              </button>
+            </div>
+          </Section>
+
           {/* ---- AI Assistant ---- */}
           <Section title="AI Assistant" icon={<Bot size={16} className="text-teal-400" />}>
             <InputField
@@ -541,7 +732,7 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
           {/* ---- About ---- */}
           <Section title="About" icon={<Info size={16} className="text-slate-400" />}>
             <p className="text-sm text-white/60">Pikes Family Dashboard</p>
-            <p className="text-sm font-mono text-white/40">v1.0.0</p>
+            <p className="text-sm font-mono text-white/40">v2.0.0</p>
             <p className="text-xs text-white/30 mt-1">
               Built with React, Tailwind CSS, and ❤️
             </p>

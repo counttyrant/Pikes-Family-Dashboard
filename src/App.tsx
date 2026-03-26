@@ -10,12 +10,15 @@ import ShoppingNotes from './pages/ShoppingNotes'
 import { SettingsPanel } from './components/settings/SettingsPanel'
 import { AiAssistant } from './components/ai/AiAssistant'
 import { PhotoSlideshow } from './components/widgets/PhotoSlideshow'
+import { LoginScreen } from './components/auth/LoginScreen'
+import { useAuth } from './contexts/AuthContext'
 import { db } from './db'
 import { getSettings } from './services/storage'
 import type { DashboardSettings } from './types'
 import { Maximize, Minimize, Settings } from 'lucide-react'
 
-function App() {
+function AppContent() {
+  const { user } = useAuth()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isIdle, setIsIdle] = useState(false)
@@ -84,10 +87,15 @@ function App() {
     }
   }
 
+  // Show login screen if not authenticated
+  if (!user) {
+    return <LoginScreen />
+  }
+
   const nightClass = isNightMode ? 'brightness-50' : ''
 
   return (
-    <div className={`h-screen w-screen overflow-hidden bg-slate-900 text-white ${nightClass} transition-all duration-500`}>
+    <div className={`h-screen w-screen overflow-hidden text-white ${nightClass} transition-all duration-500`}>
       {/* Screen saver overlay */}
       {isIdle && (
         <div
@@ -127,7 +135,7 @@ function App() {
         resistanceRatio={0.85}
       >
         <SwiperSlide>
-          <Dashboard settings={settings} />
+          <Dashboard settings={settings} accessToken={user.accessToken} />
         </SwiperSlide>
         <SwiperSlide>
           <ChoreChart />
@@ -144,6 +152,10 @@ function App() {
       <AiAssistant apiKey={settings?.openaiApiKey || ''} />
     </div>
   )
+}
+
+function App() {
+  return <AppContent />
 }
 
 export default App

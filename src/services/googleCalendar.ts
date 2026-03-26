@@ -1,6 +1,13 @@
 import type { CalendarEvent } from '../types';
 
-const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly';
+const SCOPES = [
+  'openid',
+  'profile',
+  'email',
+  'https://www.googleapis.com/auth/calendar',
+  'https://www.googleapis.com/auth/photoslibrary.readonly',
+].join(' ');
+
 const DISCOVERY_DOC =
   'https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest';
 
@@ -21,6 +28,7 @@ declare namespace google.accounts.oauth2 {
   interface TokenResponse {
     access_token: string;
     error?: string;
+    expires_in?: number;
   }
 
   function initTokenClient(config: {
@@ -51,7 +59,6 @@ function loadScript(src: string): Promise<void> {
 export async function initGoogleAuth(clientId: string): Promise<void> {
   await loadScript('https://accounts.google.com/gsi/client');
 
-  // Wait until the library is available on window
   await new Promise<void>((resolve) => {
     const check = () => {
       if (window.google?.accounts?.oauth2) {
@@ -72,7 +79,7 @@ export async function initGoogleAuth(clientId: string): Promise<void> {
   });
 }
 
-export function signIn(): Promise<string> {
+export function signIn(prompt: 'consent' | '' = 'consent'): Promise<{ access_token: string; expires_in: number }> {
   return new Promise((resolve, reject) => {
     if (!tokenClient) {
       reject(new Error('Google Auth not initialized. Call initGoogleAuth() first.'));
@@ -83,11 +90,14 @@ export function signIn(): Promise<string> {
       if (response.error) {
         reject(new Error(response.error));
       } else {
-        resolve(response.access_token);
+        resolve({
+          access_token: response.access_token,
+          expires_in: response.expires_in ?? 3600,
+        });
       }
     };
 
-    tokenClient.requestAccessToken({ prompt: 'consent' });
+    tokenClient.requestAccessToken({ prompt });
   });
 }
 
@@ -97,6 +107,21 @@ export function signOut(token: string): Promise<void> {
       resolve();
     });
   });
+}
+
+export async function fetchUserProfile(
+  token: string,
+): Promise<{ email: string; name: string; picture: string }> {
+  const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error(`Profile fetch failed: ${response.status}`);
+  const data = await response.json();
+  return {
+    email: data.email ?? '',
+    name: data.name ?? '',
+    picture: data.picture ?? '',
+  };
 }
 
 export async function fetchCalendarEvents(
@@ -143,6 +168,49 @@ export async function fetchCalendarEvents(
       allDay,
     };
   });
+}
+
+export async function createCalendarEvent(
+  token: string,
+  event: {
+    title: string;
+    start: Date;
+    end: Date;
+    allDay: boolean;
+    color?: string;
+  },
+): Promise<string> {
+  const body: Record<string, unknown> = {
+    summary: event.title,
+  };
+
+  if (event.allDay) {
+    const toDateStr = (d: Date) => d.toISOString().split('T')[0];
+    body.start = { date: toDateStr(event.start) };
+    body.end = { date: toDateStr(event.end) };
+  } else {
+    body.start = { dateTime: event.start.toISOString() };
+    body.end = { dateTime: event.end.toISOString() };
+  }
+
+  const response = await fetch(
+    'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to create event: ${response.status}`);
+  }
+
+  const data = (await response.json()) as { id: string };
+  return data.id;
 }
 
 void DISCOVERY_DOC;

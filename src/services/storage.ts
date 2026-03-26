@@ -10,6 +10,8 @@ import type {
   ShoppingItem,
   Note,
   CountdownEvent,
+  GoogleUser,
+  LocalCalendarEvent,
 } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -26,6 +28,13 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   screenSaverTimeout: 300,
   openaiApiKey: '',
   layouts: [],
+  theme: 'ocean',
+  photoSource: 'local',
+  immichUrl: '',
+  immichApiKey: '',
+  immichAlbumId: '',
+  googlePhotosAlbumId: '',
+  allowedEmails: [],
 };
 
 export async function getSettings(): Promise<DashboardSettings> {
@@ -277,4 +286,50 @@ export async function updateCountdownEvent(
 
 export async function deleteCountdownEvent(id: string): Promise<void> {
   await db.countdownEvents.delete(id);
+}
+
+// ---------------------------------------------------------------------------
+// Auth User
+// ---------------------------------------------------------------------------
+
+export async function getAuthUser(): Promise<GoogleUser | undefined> {
+  const users = await db.authUser.toArray();
+  return users[0];
+}
+
+export async function saveAuthUser(user: GoogleUser): Promise<void> {
+  // Only keep one user record
+  await db.authUser.clear();
+  await db.authUser.put(user);
+}
+
+export async function clearAuthUser(): Promise<void> {
+  await db.authUser.clear();
+}
+
+// ---------------------------------------------------------------------------
+// Local Calendar Events
+// ---------------------------------------------------------------------------
+
+export async function getLocalEvents(): Promise<LocalCalendarEvent[]> {
+  return db.localEvents.toArray();
+}
+
+export async function addLocalEvent(
+  event: Omit<LocalCalendarEvent, 'id'>,
+): Promise<string> {
+  const id = crypto.randomUUID();
+  await db.localEvents.put({ ...event, id });
+  return id;
+}
+
+export async function updateLocalEvent(
+  id: string,
+  data: Partial<LocalCalendarEvent>,
+): Promise<void> {
+  await db.localEvents.update(id, data);
+}
+
+export async function deleteLocalEvent(id: string): Promise<void> {
+  await db.localEvents.delete(id);
 }
