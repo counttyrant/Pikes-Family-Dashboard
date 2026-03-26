@@ -7,6 +7,7 @@ import {
   ListChecks,
   CheckSquare,
   Quote,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -92,6 +93,15 @@ export const WIDGET_REGISTRY: WidgetDefinition[] = [
     defaultLayout: { w: 4, h: 3 },
     minW: 3,
     minH: 2,
+  },
+  {
+    id: 'activities',
+    label: 'Activities',
+    description: 'Kid-friendly activity planner with fun icons',
+    icon: Sparkles,
+    defaultLayout: { w: 4, h: 5 },
+    minW: 3,
+    minH: 3,
   },
 ];
 

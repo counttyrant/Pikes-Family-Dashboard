@@ -9,6 +9,7 @@ import { Chores } from '../components/widgets/Chores'
 import { TodoList } from '../components/widgets/TodoList'
 import { Notes } from '../components/widgets/Notes'
 import { DailyQuote } from '../components/widgets/DailyQuote'
+import { Activities } from '../components/widgets/Activities'
 import { WidgetContainer } from '../components/widgets/WidgetContainer'
 import { WIDGET_REGISTRY, getWidgetDef } from '../components/widgets/widgetRegistry'
 import { useGoogleCalendar } from '../hooks/useGoogleCalendar'
@@ -139,6 +140,8 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
         return <Notes />
       case 'quote':
         return <DailyQuote />
+      case 'activities':
+        return <Activities />
       default:
         return <div className="text-white/40 text-sm">Unknown widget</div>
     }
