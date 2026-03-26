@@ -148,6 +148,8 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
   const [newAllowedEmail, setNewAllowedEmail] = useState('');
   const [immichAlbums, setImmichAlbums] = useState<{ id: string; albumName: string; assetCount: number }[]>([]);
   const [googleAlbums, setGoogleAlbums] = useState<{ id: string; title: string; mediaItemsCount: string }[]>([]);
+  const [googleAlbumsLoading, setGoogleAlbumsLoading] = useState(false);
+  const [googleAlbumsError, setGoogleAlbumsError] = useState<string | null>(null);
   const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarInfo[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarError, setCalendarError] = useState<string | null>(null);
@@ -227,9 +229,26 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
   /* -- Google Photos Albums ----------------------------------------------- */
 
   const handleFetchGoogleAlbums = async () => {
-    if (!user?.accessToken) return;
-    const albums = await fetchGooglePhotosAlbums(user.accessToken);
-    setGoogleAlbums(albums);
+    if (!user?.accessToken) {
+      setGoogleAlbumsError('Not signed in — sign in with Google first');
+      return;
+    }
+    setGoogleAlbumsLoading(true);
+    setGoogleAlbumsError(null);
+    try {
+      const albums = await fetchGooglePhotosAlbums(user.accessToken);
+      setGoogleAlbums(albums);
+      if (albums.length === 0) {
+        setGoogleAlbumsError('No albums found. Make sure the Photos Library API is enabled in your Google Cloud Console.');
+      }
+    } catch (err) {
+      console.warn('Failed to fetch Google Photos albums:', err);
+      setGoogleAlbumsError(
+        'Failed to load albums. Ensure the Photos Library API is enabled in your Google Cloud Console project.'
+      );
+    } finally {
+      setGoogleAlbumsLoading(false);
+    }
   };
 
   /* -- Google Calendars -------------------------------------------------- */
@@ -335,7 +354,7 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
       )}
 
       <div
-        className={`fixed top-0 right-0 z-50 h-full w-[400px] bg-slate-900/95 backdrop-blur-xl border-l border-white/10 transform transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 right-0 z-50 h-full w-full max-w-[400px] bg-slate-900/95 backdrop-blur-xl border-l border-white/10 transform transition-transform duration-300 ease-in-out ${
           open ? 'translate-x-0' : 'translate-x-full'
         } overflow-y-auto`}
       >
@@ -657,10 +676,16 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                   <>
                     <button
                       onClick={handleFetchGoogleAlbums}
-                      className="px-4 py-2 text-sm bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-400 transition-colors"
+                      disabled={googleAlbumsLoading}
+                      className="px-4 py-2 text-sm bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-400 transition-colors disabled:opacity-50"
                     >
-                      Load Albums
+                      {googleAlbumsLoading ? 'Loading…' : 'Load Albums'}
                     </button>
+                    {googleAlbumsError && (
+                      <p className="text-xs text-amber-400 bg-amber-500/10 rounded-lg px-3 py-2">
+                        ⚠️ {googleAlbumsError}
+                      </p>
+                    )}
                     {googleAlbums.length > 0 && (
                       <div className="space-y-1">
                         {googleAlbums.map((a) => (

@@ -3,12 +3,13 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import {
   startOfWeek,
   endOfWeek,
+  addDays,
   eachDayOfInterval,
   isSameDay,
   isToday,
   format,
 } from 'date-fns';
-import { Plus } from 'lucide-react';
+import { Plus, ChevronDown } from 'lucide-react';
 import type { CalendarEvent, EventIcon, LocalCalendarEvent } from '../../types';
 import { EVENT_ICON_MAP, EventIconBadge } from './EventIcons';
 import { AddEventModal } from './AddEventModal';
@@ -16,18 +17,36 @@ import { addLocalEvent } from '../../services/storage';
 import { createCalendarEvent } from '../../services/googleCalendar';
 import { db } from '../../db';
 
+const DAY_OPTIONS = [1, 3, 5, 7, 14];
+const WEEK_START_LABELS: Record<number, string> = { 0: 'Sun', 1: 'Mon' };
+
 interface CalendarProps {
   events: CalendarEvent[];
   accessToken?: string | null;
   calendarColors?: Record<string, string>;
   eventColorOverrides?: Record<string, string>;
   onEventColorChange?: (eventId: string, color: string) => void;
+  daysToShow: number;
+  weekStartsOn: 0 | 1;
+  onDaysToShowChange: (days: number) => void;
+  onWeekStartsOnChange: (day: 0 | 1) => void;
 }
 
-export function Calendar({ events, accessToken, calendarColors = {}, eventColorOverrides = {}, onEventColorChange }: CalendarProps) {
+export function Calendar({
+  events,
+  accessToken,
+  calendarColors = {},
+  eventColorOverrides = {},
+  onEventColorChange,
+  daysToShow,
+  weekStartsOn,
+  onDaysToShowChange,
+  onWeekStartsOnChange,
+}: CalendarProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [colorPickerEvent, setColorPickerEvent] = useState<string | null>(null);
+  const [showViewMenu, setShowViewMenu] = useState(false);
 
   const localEvents = useLiveQuery(() => db.localEvents.toArray()) ?? [];
 
@@ -48,10 +67,18 @@ export function Calendar({ events, accessToken, calendarColors = {}, eventColorO
 
   const days = useMemo(() => {
     const now = new Date();
-    const start = startOfWeek(now, { weekStartsOn: 1 });
-    const end = endOfWeek(now, { weekStartsOn: 1 });
-    return eachDayOfInterval({ start, end });
-  }, []);
+    if (daysToShow === 7 || daysToShow === 14) {
+      const start = startOfWeek(now, { weekStartsOn });
+      const end = daysToShow === 14
+        ? addDays(endOfWeek(now, { weekStartsOn }), 7)
+        : endOfWeek(now, { weekStartsOn });
+      return eachDayOfInterval({ start, end });
+    }
+    // For 1, 3, 5 — show today + next N-1 days
+    return eachDayOfInterval({ start: now, end: addDays(now, daysToShow - 1) });
+  }, [daysToShow, weekStartsOn]);
+
+  const cols = Math.min(daysToShow, 7);
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
@@ -82,7 +109,6 @@ export function Calendar({ events, accessToken, calendarColors = {}, eventColorO
     color: string;
     allDay: boolean;
   }) => {
-    // Save locally
     await addLocalEvent({
       title: eventData.title,
       start: eventData.start,
@@ -92,7 +118,6 @@ export function Calendar({ events, accessToken, calendarColors = {}, eventColorO
       allDay: eventData.allDay,
     });
 
-    // Also push to Google Calendar if connected
     if (accessToken) {
       try {
         await createCalendarEvent(accessToken, {
@@ -109,7 +134,61 @@ export function Calendar({ events, accessToken, calendarColors = {}, eventColorO
 
   return (
     <>
-      <div className="grid grid-cols-7 gap-1 h-full">
+      {/* View controls */}
+      <div className="flex items-center gap-2 mb-2 relative">
+        <button
+          onClick={() => setShowViewMenu(!showViewMenu)}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-xs text-white/70"
+        >
+          {daysToShow}‑day · {WEEK_START_LABELS[weekStartsOn]} start
+          <ChevronDown size={12} />
+        </button>
+
+        {showViewMenu && (
+          <div
+            className="absolute top-8 left-0 z-50 bg-slate-800 border border-white/10 rounded-xl shadow-2xl p-3 min-w-[180px]"
+            onMouseLeave={() => setShowViewMenu(false)}
+          >
+            <p className="text-[0.6rem] uppercase tracking-wider text-white/40 font-semibold mb-1.5">Days shown</p>
+            <div className="flex gap-1 mb-3">
+              {DAY_OPTIONS.map((n) => (
+                <button
+                  key={n}
+                  onClick={() => { onDaysToShowChange(n); }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                    daysToShow === n
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white/10 text-white/60 hover:bg-white/20'
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <p className="text-[0.6rem] uppercase tracking-wider text-white/40 font-semibold mb-1.5">Week starts on</p>
+            <div className="flex gap-1">
+              {([0, 1] as const).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => { onWeekStartsOnChange(d); }}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                    weekStartsOn === d
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white/10 text-white/60 hover:bg-white/20'
+                  }`}
+                >
+                  {d === 0 ? 'Sunday' : 'Monday'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div
+        className="grid gap-1 h-full"
+        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+      >
         {days.map((day) => {
           const key = format(day, 'yyyy-MM-dd');
           const dayEvents = eventsByDay.get(key) ?? [];
@@ -162,7 +241,6 @@ export function Calendar({ events, accessToken, calendarColors = {}, eventColorO
                                    hover:bg-white/10 active:bg-white/15 transition-colors"
                         onClick={() => setColorPickerEvent(colorPickerEvent === evt.id ? null : evt.id)}
                       >
-                        {/* Icon or color dot — color-coded by calendar */}
                         {evt.icon && evt.icon in EVENT_ICON_MAP ? (
                           <EventIconBadge icon={evt.icon} size="sm" />
                         ) : (

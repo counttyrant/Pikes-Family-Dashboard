@@ -46,6 +46,8 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   calendarColors: {},
   widgetColors: {},
   eventColorOverrides: {},
+  calendarDaysToShow: 7,
+  weekStartsOn: 0,
 };
 
 export async function getSettings(): Promise<DashboardSettings> {

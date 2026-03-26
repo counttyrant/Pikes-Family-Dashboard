@@ -13,6 +13,9 @@ interface ForecastDay {
   tempMax: number;
   description: string;
   icon: string;
+  humidity: number;
+  windSpeed: number;
+  pop: number; // probability of precipitation (0-100)
 }
 
 export interface WeatherData {
@@ -72,22 +75,27 @@ export async function fetchWeather(
     // Group the 3-hour forecast entries by calendar date
     const dailyMap = new Map<
       string,
-      { temps: number[]; descriptions: string[]; icons: string[] }
+      { temps: number[]; descriptions: string[]; icons: string[]; humidities: number[]; winds: number[]; pops: number[] }
     >();
 
     for (const entry of forecastData.list as Array<{
       dt_txt: string;
-      main: { temp: number };
+      main: { temp: number; humidity: number };
       weather: Array<{ description: string; icon: string }>;
+      wind: { speed: number };
+      pop: number;
     }>) {
       const date = entry.dt_txt.split(' ')[0];
       if (!dailyMap.has(date)) {
-        dailyMap.set(date, { temps: [], descriptions: [], icons: [] });
+        dailyMap.set(date, { temps: [], descriptions: [], icons: [], humidities: [], winds: [], pops: [] });
       }
       const day = dailyMap.get(date)!;
       day.temps.push(entry.main.temp);
       day.descriptions.push(entry.weather[0].description);
       day.icons.push(entry.weather[0].icon);
+      day.humidities.push(entry.main.humidity);
+      day.winds.push(entry.wind.speed);
+      day.pops.push(entry.pop ?? 0);
     }
 
     const forecast: ForecastDay[] = [...dailyMap.entries()]
@@ -98,6 +106,9 @@ export async function fetchWeather(
         tempMax: Math.round(Math.max(...day.temps)),
         description: day.descriptions[Math.floor(day.descriptions.length / 2)],
         icon: day.icons[Math.floor(day.icons.length / 2)],
+        humidity: Math.round(day.humidities.reduce((a, b) => a + b, 0) / day.humidities.length),
+        windSpeed: Math.round(day.winds.reduce((a, b) => a + b, 0) / day.winds.length),
+        pop: Math.round(Math.max(...day.pops) * 100),
       }));
 
     return { current, forecast };

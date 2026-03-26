@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { GridLayout, verticalCompactor } from 'react-grid-layout'
+import { GridLayout } from 'react-grid-layout'
 import { Clock } from '../components/widgets/Clock'
 import { Weather } from '../components/widgets/Weather'
 import { Calendar } from '../components/widgets/Calendar'
@@ -27,6 +27,8 @@ const DEFAULT_LAYOUTS: WidgetLayout[] = [
 
 const DEFAULT_ACTIVE = ['clock', 'weather', 'countdown', 'calendar']
 
+const MOBILE_BREAKPOINT = 768
+
 interface DashboardProps {
   settings: DashboardSettings | null
   accessToken?: string | null
@@ -37,6 +39,8 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
   const [showLibrary, setShowLibrary] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(0)
+
+  const isMobile = containerWidth > 0 && containerWidth < MOBILE_BREAKPOINT
 
   useEffect(() => {
     const el = containerRef.current
@@ -113,7 +117,7 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
 
   const removeWidget = (id: string) => {
     const updated = activeWidgets.filter((w) => w !== id)
-    if (updated.length === 0) return // don't allow removing all
+    if (updated.length === 0) return
     saveSettings({ activeWidgets: updated })
   }
 
@@ -131,7 +135,27 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
       case 'countdown':
         return <Countdown events={countdownEvents} />
       case 'calendar':
-        return <Calendar events={calendarEvents} accessToken={accessToken} calendarColors={calendarColors} eventColorOverrides={eventColorOverrides} onEventColorChange={handleEventColorChange} />
+        return (
+          <Calendar
+            events={calendarEvents}
+            accessToken={accessToken}
+            calendarColors={calendarColors}
+            eventColorOverrides={eventColorOverrides}
+            onEventColorChange={handleEventColorChange}
+            daysToShow={settings?.calendarDaysToShow ?? 7}
+            weekStartsOn={settings?.weekStartsOn ?? 0}
+            onDaysToShowChange={async (n) => {
+              if (!settings) return
+              const updated = { ...settings, calendarDaysToShow: n }
+              await saveSettings(updated)
+            }}
+            onWeekStartsOnChange={async (d) => {
+              if (!settings) return
+              const updated = { ...settings, weekStartsOn: d as 0 | 1 }
+              await saveSettings(updated)
+            }}
+          />
+        )
       case 'chores':
         return <Chores />
       case 'todos':
@@ -159,6 +183,117 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
 
   const inactiveWidgets = WIDGET_REGISTRY.filter((w) => !activeWidgets.includes(w.id))
 
+  // ── Mobile stacked layout ──────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <div
+        ref={containerRef}
+        className="h-full w-full px-3 pt-14 pb-6 relative overflow-y-auto"
+      >
+        {/* Mobile edit controls — compact top bar */}
+        <div className="fixed top-3 left-3 z-40 flex items-center gap-1.5">
+          <button
+            onClick={() => setEditMode(!editMode)}
+            className={`rounded-full p-2.5 backdrop-blur-sm transition-colors ${
+              editMode ? 'bg-blue-500/60 text-white' : 'bg-black/40 text-white'
+            }`}
+          >
+            {editMode ? <Unlock size={18} /> : <Lock size={18} />}
+          </button>
+          {editMode && (
+            <button
+              onClick={() => setShowLibrary(!showLibrary)}
+              className={`rounded-full p-2.5 backdrop-blur-sm transition-colors ${
+                showLibrary ? 'bg-green-500/60 text-white' : 'bg-black/40 text-white'
+              }`}
+            >
+              <LayoutGrid size={18} />
+            </button>
+          )}
+        </div>
+
+        {/* Mobile widget library — full-width bottom sheet style */}
+        {editMode && showLibrary && (
+          <div
+            className="fixed inset-x-0 bottom-0 z-50 max-h-[60vh] overflow-y-auto rounded-t-2xl border-t p-4 safe-bottom"
+            style={{
+              backgroundColor: 'var(--theme-card, rgba(30, 41, 59, 0.97))',
+              borderColor: 'color-mix(in srgb, var(--theme-accent, #3b82f6) 20%, transparent)',
+            }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-white/80">Widget Library</h3>
+              <button onClick={() => setShowLibrary(false)} className="p-2 hover:bg-white/10 rounded-lg">
+                <X size={18} className="text-white/50" />
+              </button>
+            </div>
+            <div className="mb-3">
+              <span className="text-[0.6rem] uppercase tracking-wider text-white/40 font-semibold">Active</span>
+              <div className="flex flex-col gap-1 mt-1">
+                {activeWidgets.map((id) => {
+                  const def = getWidgetDef(id)
+                  if (!def) return null
+                  const Icon = def.icon
+                  return (
+                    <div key={id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white/5">
+                      <Icon size={18} className="text-white/50 shrink-0" />
+                      <p className="text-sm text-white/80 flex-1">{def.label}</p>
+                      <button onClick={() => removeWidget(id)} className="p-1.5 hover:bg-red-500/20 rounded">
+                        <X size={16} className="text-red-400" />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            {inactiveWidgets.length > 0 && (
+              <div>
+                <span className="text-[0.6rem] uppercase tracking-wider text-white/40 font-semibold">Available</span>
+                <div className="flex flex-col gap-1 mt-1">
+                  {inactiveWidgets.map((def) => {
+                    const Icon = def.icon
+                    return (
+                      <button
+                        key={def.id}
+                        onClick={() => addWidget(def.id)}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition-colors text-left w-full"
+                      >
+                        <Icon size={18} className="text-white/30 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-white/60">{def.label}</p>
+                          <p className="text-[0.6rem] text-white/30">{def.description}</p>
+                        </div>
+                        <Plus size={18} className="text-green-400 shrink-0" />
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Mobile widgets — stacked vertically, full-width */}
+        <div className="flex flex-col gap-3">
+          {activeWidgets.map((id) => (
+            <div key={id} className="min-h-[200px]">
+              <WidgetContainer
+                title={getWidgetTitle(id)}
+                className="h-full"
+                editMode={editMode}
+                widgetColor={widgetColors[id]}
+                onColorChange={(color) => handleWidgetColorChange(id, color)}
+              >
+                {renderWidget(id)}
+              </WidgetContainer>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Desktop grid layout ────────────────────────────────────────────
   return (
     <div
       ref={containerRef}
@@ -178,7 +313,7 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
 
         {editMode && (
           <>
-            <div className="bg-blue-500/60 text-white text-xs px-3 py-2 rounded-full backdrop-blur-sm">
+            <div className="bg-blue-500/60 text-white text-xs px-3 py-2 rounded-full backdrop-blur-sm hidden md:block">
               Drag headers to move · Drag corners to resize
             </div>
             <button
@@ -273,7 +408,6 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
         gridConfig={{ cols: 12, rowHeight: 80, margin: [16, 16] }}
         dragConfig={{ enabled: editMode, handle: '.drag-handle' }}
         resizeConfig={{ enabled: editMode, handles: ['se', 'sw', 'ne', 'nw'] }}
-        compactor={verticalCompactor}
         autoSize={true}
         onLayoutChange={(layout) => handleLayoutChange(layout)}
       >

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { CloudOff, Loader2 } from 'lucide-react';
+import { CloudOff, Loader2, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { fetchWeather, type WeatherData } from '../../services/weather';
 
@@ -14,6 +14,7 @@ export function Weather({ apiKey, location }: WeatherProps) {
   const [data, setData] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     if (!apiKey) return;
@@ -70,8 +71,10 @@ export function Weather({ apiKey, location }: WeatherProps) {
   const iconUrl = (code: string) =>
     `https://openweathermap.org/img/wn/${code}@2x.png`;
 
+  const detail = selectedDay !== null ? data.forecast[selectedDay] : null;
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 h-full">
       {/* Current weather */}
       <div className="flex items-center gap-4">
         <img
@@ -100,14 +103,63 @@ export function Weather({ apiKey, location }: WeatherProps) {
       {/* Divider */}
       <div className="h-px bg-white/10" />
 
+      {/* Day detail overlay */}
+      {detail && (
+        <div className="bg-slate-700/80 rounded-xl p-3 border border-white/10 relative">
+          <button
+            onClick={() => setSelectedDay(null)}
+            className="absolute top-2 right-2 p-1 hover:bg-white/10 rounded-lg transition-colors"
+          >
+            <X size={14} className="text-white/50" />
+          </button>
+          <div className="flex items-center gap-3 mb-2">
+            <img src={iconUrl(detail.icon)} alt={detail.description} className="w-12 h-12" />
+            <div>
+              <p className="text-base font-medium text-white">
+                {format(parseISO(detail.date), 'EEEE, MMM d')}
+              </p>
+              <p className="text-sm text-white/60 capitalize">{detail.description}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-white/50">High</span>
+              <span className="text-white font-medium">{detail.tempMax}°F</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/50">Low</span>
+              <span className="text-white font-medium">{detail.tempMin}°F</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/50">💧 Humidity</span>
+              <span className="text-white font-medium">{detail.humidity}%</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/50">💨 Wind</span>
+              <span className="text-white font-medium">{detail.windSpeed} mph</span>
+            </div>
+            <div className="flex justify-between col-span-2">
+              <span className="text-white/50">🌧️ Rain chance</span>
+              <span className="text-white font-medium">{detail.pop}%</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 5-day forecast */}
       <div className="grid grid-cols-5 gap-2">
-        {data.forecast.map((day) => {
+        {data.forecast.map((day, idx) => {
           const dayName = format(parseISO(day.date), 'EEE');
+          const isSelected = selectedDay === idx;
           return (
-            <div
+            <button
               key={day.date}
-              className="flex flex-col items-center gap-1 py-1"
+              onClick={() => setSelectedDay(isSelected ? null : idx)}
+              className={`flex flex-col items-center gap-1 py-1.5 rounded-xl transition-all active:scale-95 ${
+                isSelected
+                  ? 'bg-white/15 ring-1 ring-white/20'
+                  : 'hover:bg-white/10'
+              }`}
             >
               <span className="text-xs font-medium text-white/60 uppercase">
                 {dayName}
@@ -121,7 +173,7 @@ export function Weather({ apiKey, location }: WeatherProps) {
                 <span className="text-white font-medium">{day.tempMax}°</span>
                 <span className="text-white/40">{day.tempMin}°</span>
               </div>
-            </div>
+            </button>
           );
         })}
       </div>

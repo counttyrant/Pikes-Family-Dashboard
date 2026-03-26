@@ -1,17 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
-import { getSettings } from '../../services/storage';
 import { fetchImmichAlbumPhotos } from '../../services/immich';
 import { fetchGooglePhotosAlbumImages } from '../../services/googlePhotos';
 import { fetchUnsplashPhotos, DEFAULT_PHOTO_URLS } from '../../services/unsplash';
-import type { PhotoSource } from '../../types';
+import type { PhotoSource, DashboardSettings } from '../../types';
 import { SkipForward } from 'lucide-react';
 
 const TRANSITION_MS = 1500;
 
 export function PhotoSlideshow() {
   const localPhotos = useLiveQuery(() => db.photos.orderBy('addedAt').toArray());
+  const dbSettings = useLiveQuery(() => db.settings.get('main'));
+
   const [remoteUrls, setRemoteUrls] = useState<string[]>([]);
   const [photoSource, setPhotoSource] = useState<PhotoSource>('local');
   const [slideInterval, setSlideInterval] = useState(15);
@@ -23,16 +24,16 @@ export function PhotoSlideshow() {
 
   const urlCache = useRef<Map<string, string>>(new Map());
 
-  // Load photo source settings and fetch remote photos
+  // Reload photos whenever settings change (reactive via useLiveQuery)
   useEffect(() => {
+    if (!dbSettings) return;
     let cancelled = false;
+    const settings = dbSettings as DashboardSettings;
 
-    async function loadPhotos() {
-      const settings = await getSettings();
-      if (cancelled) return;
-      setPhotoSource(settings.photoSource);
-      setSlideInterval(settings.slideInterval || 15);
+    setPhotoSource(settings.photoSource);
+    setSlideInterval(settings.slideInterval || 15);
 
+    async function loadRemote() {
       if (settings.photoSource === 'immich' && settings.immichUrl && settings.immichApiKey && settings.immichAlbumId) {
         const urls = await fetchImmichAlbumPhotos(settings.immichUrl, settings.immichApiKey, settings.immichAlbumId);
         if (!cancelled) setRemoteUrls(urls);
@@ -43,15 +44,17 @@ export function PhotoSlideshow() {
         const key = (import.meta.env.VITE_UNSPLASH_ACCESS_KEY as string) ?? '';
         const urls = await fetchUnsplashPhotos(key);
         if (!cancelled) setRemoteUrls(urls);
-      } else if (settings.photoSource === 'local') {
+      } else {
+        // local or fallback — use curated defaults when no local photos uploaded
         if (!cancelled) setRemoteUrls(DEFAULT_PHOTO_URLS);
       }
     }
 
-    loadPhotos();
-    const interval = setInterval(loadPhotos, 600_000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, []);
+    loadRemote();
+    // Refresh remote URLs periodically
+    const timer = setInterval(loadRemote, 600_000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [dbSettings]);
 
   const getUrl = useCallback(
     (photo: { id: string; blob: Blob }) => {
@@ -81,9 +84,14 @@ export function PhotoSlideshow() {
     return DEFAULT_PHOTO_URLS;
   }, [photoSource, localPhotos, remoteUrls, getUrl]);
 
-  // Compute current display URL directly from index (no separate effect)
   const urls = getUrls();
-  const displayUrl = urls.length > 0 ? urls[currentIdx % urls.length] : null;
+  const safeIdx = urls.length > 0 ? currentIdx % urls.length : 0;
+  const displayUrl = urls.length > 0 ? urls[safeIdx] : null;
+
+  // Reset index when URL list changes
+  useEffect(() => {
+    setCurrentIdx(0);
+  }, [remoteUrls.length, photoSource]);
 
   // Advance to next photo
   const advancePhoto = useCallback(() => {
@@ -104,7 +112,7 @@ export function PhotoSlideshow() {
     }, TRANSITION_MS);
   }, [getUrls, currentIdx]);
 
-  // Slideshow timer — use a ref to avoid recreating interval on every index change
+  // Slideshow timer
   const advanceRef = useRef(advancePhoto);
   advanceRef.current = advancePhoto;
 
@@ -148,14 +156,16 @@ export function PhotoSlideshow() {
 
       <div className="absolute inset-0 bg-black/40" />
 
-      {/* Skip photo button — bottom-left to avoid chat button overlap */}
-      <button
-        onClick={() => advancePhoto()}
-        className="fixed bottom-6 left-6 z-30 p-3 rounded-full bg-black/30 backdrop-blur-sm text-white/50 hover:text-white hover:bg-black/50 transition-all"
-        title="Next photo"
-      >
-        <SkipForward size={18} />
-      </button>
+      {/* Skip photo button */}
+      {urls.length > 1 && (
+        <button
+          onClick={() => advancePhoto()}
+          className="fixed bottom-4 left-4 sm:bottom-6 sm:left-6 z-30 p-3 rounded-full bg-black/30 backdrop-blur-sm text-white/50 hover:text-white hover:bg-black/50 transition-all active:scale-95"
+          title="Next photo"
+        >
+          <SkipForward size={18} />
+        </button>
+      )}
     </div>
   );
 }

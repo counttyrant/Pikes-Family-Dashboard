@@ -190,6 +190,8 @@ export interface DashboardSettings {
   calendarColors: Record<string, string>;
   widgetColors: Record<string, string>;
   eventColorOverrides: Record<string, string>;
+  calendarDaysToShow: number;
+  weekStartsOn: 0 | 1; // 0 = Sunday, 1 = Monday
 }
 
 /* ── Misc ─────────────────────────────────────────────────────────────── */
