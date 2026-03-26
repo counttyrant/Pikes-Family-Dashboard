@@ -125,11 +125,6 @@ function AppContent() {
     [enabledPages]
   );
 
-  // Show login screen if not authenticated
-  if (!user) {
-    return <LoginScreen />
-  }
-
   // Delete current photo (local or Immich)
   const handleDeletePhoto = useCallback(async () => {
     const info = slideshowRef.current?.getCurrentInfo();
@@ -145,6 +140,11 @@ function AppContent() {
       }
     }
   }, [settings]);
+
+  // Show login screen if not authenticated
+  if (!user) {
+    return <LoginScreen />
+  }
 
   // Render a page component by its id
   const renderPage = (id: string) => {
