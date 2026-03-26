@@ -27,6 +27,8 @@ jobs:
           action: "upload"
           app_location: "/"
           output_location: "dist"
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
 
   close_pull_request:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
