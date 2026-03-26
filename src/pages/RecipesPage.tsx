@@ -15,6 +15,8 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 
 interface RecipesPageProps {
@@ -188,7 +190,7 @@ Respond ONLY with valid JSON in this exact format:
     }
   };
 
-  // ── Save / delete ──────────────────────────────────────────────────────
+  // ── Save / delete / reorder ────────────────────────────────────────────
 
   const handleSave = async (recipe: AiRecipe) => {
     await addRecipe({
@@ -199,7 +201,6 @@ Respond ONLY with valid JSON in this exact format:
       cookTime: recipe.cookTime,
       servings: recipe.servings,
     });
-    // Remove from suggestions after saving
     setSuggestions((prev) => prev.filter((r) => r.title !== recipe.title));
   };
 
@@ -216,206 +217,251 @@ Respond ONLY with valid JSON in this exact format:
     });
   };
 
+  const moveRecipe = async (index: number, direction: 'up' | 'down') => {
+    if (!savedRecipes || savedRecipes.length < 2) return;
+    const swapIdx = direction === 'up' ? index - 1 : index + 1;
+    if (swapIdx < 0 || swapIdx >= savedRecipes.length) return;
+    // Swap addedAt timestamps to reorder
+    const a = savedRecipes[index];
+    const b = savedRecipes[swapIdx];
+    await db.recipes.update(a.id, { addedAt: b.addedAt });
+    await db.recipes.update(b.id, { addedAt: a.addedAt });
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────
 
   return (
     <div className="h-full w-full p-6 pt-16 overflow-y-auto">
-      <div className="max-w-2xl mx-auto space-y-6 pb-24">
+      <div className="max-w-6xl mx-auto pb-24">
         {/* Header */}
-        <h1 className="text-2xl font-bold flex items-center gap-2">
+        <h1 className="text-2xl font-bold flex items-center gap-2 mb-6">
           <ChefHat size={28} /> Recipes
         </h1>
 
-        {/* Ingredient input section */}
-        <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 space-y-3">
-          <label className="text-sm text-white/70 font-medium">
-            What ingredients do you have?
-          </label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={ingredients}
-              onChange={(e) => setIngredients(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && findRecipes()}
-              placeholder="e.g. chicken, rice, garlic, soy sauce…"
-              className="flex-1 rounded-xl bg-white/10 border border-white/20 px-4 py-2.5 text-white placeholder-white/40 outline-none focus:border-emerald-400/60 transition-colors"
-            />
-            <button
-              onClick={toggleVoice}
-              className={`rounded-xl p-2.5 transition-colors ${
-                listening
-                  ? 'bg-red-500/80 text-white animate-pulse'
-                  : 'bg-white/10 border border-white/20 text-white/70 hover:text-white hover:bg-white/20'
-              }`}
-              title={listening ? 'Stop listening' : 'Speak ingredients'}
-            >
-              {listening ? <MicOff size={20} /> : <Mic size={20} />}
-            </button>
-          </div>
-
-          {micError && (
-            <p className="text-red-400 text-xs">{micError}</p>
-          )}
-
-          <button
-            onClick={findRecipes}
-            disabled={loading || !ingredients.trim()}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2.5 font-medium transition-colors"
-          >
-            {loading ? (
-              <>
-                <Loader2 size={18} className="animate-spin" /> Finding recipes…
-              </>
-            ) : (
-              <>
-                <Search size={18} /> Find Recipes
-              </>
-            )}
-          </button>
-
-          {aiError && (
-            <p className="text-red-400 text-sm">{aiError}</p>
-          )}
-        </div>
-
-        {/* AI suggestions */}
-        {suggestions.length > 0 && (
-          <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-emerald-400">
-              ✨ AI Suggestions
-            </h2>
-            {suggestions.map((recipe, idx) => (
-              <div
-                key={idx}
-                className="bg-white/5 backdrop-blur-md rounded-2xl border border-emerald-500/20 p-4 space-y-2"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-lg font-semibold">{recipe.title}</h3>
-                  <button
-                    onClick={() => handleSave(recipe)}
-                    className="flex items-center gap-1 shrink-0 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 px-3 py-1.5 text-sm font-medium transition-colors"
-                  >
-                    <Save size={14} /> Save
-                  </button>
-                </div>
-
-                <div className="flex flex-wrap gap-3 text-xs text-white/60">
-                  {recipe.prepTime && (
-                    <span className="flex items-center gap-1">
-                      <Clock size={12} /> Prep: {recipe.prepTime}
-                    </span>
-                  )}
-                  {recipe.cookTime && (
-                    <span className="flex items-center gap-1">
-                      <Clock size={12} /> Cook: {recipe.cookTime}
-                    </span>
-                  )}
-                  {recipe.servings && (
-                    <span className="flex items-center gap-1">
-                      <Users size={12} /> {recipe.servings} servings
-                    </span>
-                  )}
-                </div>
-
-                <div>
-                  <p className="text-sm text-white/70 font-medium mb-1">Ingredients:</p>
-                  <ul className="list-disc list-inside text-sm text-white/80 space-y-0.5">
-                    {recipe.ingredients.map((ing, i) => (
-                      <li key={i}>{ing}</li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div>
-                  <p className="text-sm text-white/70 font-medium mb-1">Instructions:</p>
-                  <p className="text-sm text-white/80 whitespace-pre-line">
-                    {recipe.instructions}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Saved recipes */}
-        {savedRecipes && savedRecipes.length > 0 && (
-          <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-orange-400">
-              📖 Saved Recipes
-            </h2>
-            {savedRecipes.map((recipe: Recipe) => {
-              const expanded = expandedIds.has(recipe.id);
-              return (
-                <div
-                  key={recipe.id}
-                  className="bg-white/5 backdrop-blur-md rounded-2xl border border-orange-500/20 p-4 space-y-2"
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* LEFT — Ingredient input + AI suggestions */}
+          <div className="flex-1 min-w-0 space-y-6">
+            {/* Ingredient input section */}
+            <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 space-y-3">
+              <label className="text-sm text-white/70 font-medium">
+                What ingredients do you have?
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={ingredients}
+                  onChange={(e) => setIngredients(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && findRecipes()}
+                  placeholder="e.g. chicken, rice, garlic, soy sauce…"
+                  className="flex-1 rounded-xl bg-white/10 border border-white/20 px-4 py-2.5 text-white placeholder-white/40 outline-none focus:border-emerald-400/60 transition-colors"
+                />
+                <button
+                  onClick={toggleVoice}
+                  className={`rounded-xl p-2.5 transition-colors ${
+                    listening
+                      ? 'bg-red-500/80 text-white animate-pulse'
+                      : 'bg-white/10 border border-white/20 text-white/70 hover:text-white hover:bg-white/20'
+                  }`}
+                  title={listening ? 'Stop listening' : 'Speak ingredients'}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <button
-                      onClick={() => toggleExpand(recipe.id)}
-                      className="flex items-center gap-2 text-left flex-1 min-w-0"
-                    >
-                      <h3 className="text-lg font-semibold truncate">{recipe.title}</h3>
-                      {expanded ? <ChevronUp size={18} className="shrink-0 text-white/50" /> : <ChevronDown size={18} className="shrink-0 text-white/50" />}
-                    </button>
-                    <button
-                      onClick={() => handleDelete(recipe.id)}
-                      className="shrink-0 rounded-lg bg-red-600/60 hover:bg-red-600 p-1.5 transition-colors"
-                      title="Delete recipe"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+                  {listening ? <MicOff size={20} /> : <Mic size={20} />}
+                </button>
+              </div>
 
-                  <div className="flex flex-wrap gap-3 text-xs text-white/60">
-                    {recipe.prepTime && (
-                      <span className="flex items-center gap-1">
-                        <Clock size={12} /> Prep: {recipe.prepTime}
-                      </span>
-                    )}
-                    {recipe.cookTime && (
-                      <span className="flex items-center gap-1">
-                        <Clock size={12} /> Cook: {recipe.cookTime}
-                      </span>
-                    )}
-                    {recipe.servings && (
-                      <span className="flex items-center gap-1">
-                        <Users size={12} /> {recipe.servings} servings
-                      </span>
-                    )}
-                  </div>
+              {micError && (
+                <p className="text-red-400 text-xs">{micError}</p>
+              )}
 
-                  {expanded && (
-                    <>
-                      <div>
-                        <p className="text-sm text-white/70 font-medium mb-1">Ingredients:</p>
-                        <ul className="list-disc list-inside text-sm text-white/80 space-y-0.5">
-                          {recipe.ingredients.map((ing, i) => (
-                            <li key={i}>{ing}</li>
-                          ))}
-                        </ul>
+              <button
+                onClick={findRecipes}
+                disabled={loading || !ingredients.trim()}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2.5 font-medium transition-colors"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" /> Finding recipes…
+                  </>
+                ) : (
+                  <>
+                    <Search size={18} /> Find Recipes
+                  </>
+                )}
+              </button>
+
+              {aiError && (
+                <p className="text-red-400 text-sm">{aiError}</p>
+              )}
+            </div>
+
+            {/* AI suggestions */}
+            {suggestions.length > 0 && (
+              <div className="space-y-3">
+                <h2 className="text-lg font-semibold text-emerald-400">
+                  ✨ AI Suggestions
+                </h2>
+                {suggestions.map((recipe, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-white/5 backdrop-blur-md rounded-2xl border border-emerald-500/20 p-4 space-y-2"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-lg font-semibold">{recipe.title}</h3>
+                      <button
+                        onClick={() => handleSave(recipe)}
+                        className="flex items-center gap-1 shrink-0 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 px-3 py-1.5 text-sm font-medium transition-colors"
+                      >
+                        <Save size={14} /> Save
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3 text-xs text-white/60">
+                      {recipe.prepTime && (
+                        <span className="flex items-center gap-1">
+                          <Clock size={12} /> Prep: {recipe.prepTime}
+                        </span>
+                      )}
+                      {recipe.cookTime && (
+                        <span className="flex items-center gap-1">
+                          <Clock size={12} /> Cook: {recipe.cookTime}
+                        </span>
+                      )}
+                      {recipe.servings && (
+                        <span className="flex items-center gap-1">
+                          <Users size={12} /> {recipe.servings} servings
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <p className="text-sm text-white/70 font-medium mb-1">Ingredients:</p>
+                      <ul className="list-disc list-inside text-sm text-white/80 space-y-0.5">
+                        {recipe.ingredients.map((ing, i) => (
+                          <li key={i}>{ing}</li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div>
+                      <p className="text-sm text-white/70 font-medium mb-1">Instructions:</p>
+                      <p className="text-sm text-white/80 whitespace-pre-line">
+                        {recipe.instructions}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Empty state */}
+            {(!savedRecipes || savedRecipes.length === 0) && suggestions.length === 0 && !loading && (
+              <div className="text-center text-white/40 py-12">
+                <ChefHat size={48} className="mx-auto mb-3 opacity-50" />
+                <p>Tell us what ingredients you have and we'll suggest recipes!</p>
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT — Saved recipes panel */}
+          <div className="w-full lg:w-80 shrink-0">
+            <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4">
+              <h2 className="text-lg font-semibold text-orange-400 mb-3 flex items-center gap-2">
+                📖 My Recipes
+                {savedRecipes && savedRecipes.length > 0 && (
+                  <span className="text-xs font-normal text-white/40">({savedRecipes.length})</span>
+                )}
+              </h2>
+
+              {(!savedRecipes || savedRecipes.length === 0) ? (
+                <p className="text-sm text-white/40 text-center py-6">No saved recipes yet</p>
+              ) : (
+                <div className="flex flex-col gap-2 max-h-[calc(100vh-14rem)] overflow-y-auto">
+                  {savedRecipes.map((recipe: Recipe, index: number) => {
+                    const expanded = expandedIds.has(recipe.id);
+                    return (
+                      <div
+                        key={recipe.id}
+                        className="bg-white/5 rounded-xl border border-orange-500/10 p-3 space-y-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => toggleExpand(recipe.id)}
+                            className="flex items-center gap-1.5 text-left flex-1 min-w-0"
+                          >
+                            {expanded ? <ChevronUp size={14} className="shrink-0 text-white/50" /> : <ChevronDown size={14} className="shrink-0 text-white/50" />}
+                            <span className="text-sm font-medium truncate">{recipe.title}</span>
+                          </button>
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <button
+                              onClick={() => moveRecipe(index, 'up')}
+                              disabled={index === 0}
+                              className="p-1 rounded hover:bg-white/10 disabled:opacity-20 transition-colors"
+                              title="Move up"
+                            >
+                              <ArrowUp size={12} className="text-white/50" />
+                            </button>
+                            <button
+                              onClick={() => moveRecipe(index, 'down')}
+                              disabled={index === savedRecipes.length - 1}
+                              className="p-1 rounded hover:bg-white/10 disabled:opacity-20 transition-colors"
+                              title="Move down"
+                            >
+                              <ArrowDown size={12} className="text-white/50" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(recipe.id)}
+                              className="p-1 rounded hover:bg-red-500/20 transition-colors"
+                              title="Delete recipe"
+                            >
+                              <Trash2 size={12} className="text-red-400" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-white/40">{recipe.ingredients?.slice(0, 3).join(', ')}{recipe.ingredients?.length > 3 ? '…' : ''}</p>
+
+                        {expanded && (
+                          <div className="space-y-2 pt-1 border-t border-white/5">
+                            <div className="flex flex-wrap gap-2 text-xs text-white/60">
+                              {recipe.prepTime && (
+                                <span className="flex items-center gap-1">
+                                  <Clock size={10} /> Prep: {recipe.prepTime}
+                                </span>
+                              )}
+                              {recipe.cookTime && (
+                                <span className="flex items-center gap-1">
+                                  <Clock size={10} /> Cook: {recipe.cookTime}
+                                </span>
+                              )}
+                              {recipe.servings && (
+                                <span className="flex items-center gap-1">
+                                  <Users size={10} /> {recipe.servings}
+                                </span>
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-xs text-white/60 font-medium mb-1">Ingredients:</p>
+                              <ul className="list-disc list-inside text-xs text-white/70 space-y-0.5">
+                                {recipe.ingredients.map((ing, i) => (
+                                  <li key={i}>{ing}</li>
+                                ))}
+                              </ul>
+                            </div>
+                            <div>
+                              <p className="text-xs text-white/60 font-medium mb-1">Instructions:</p>
+                              <p className="text-xs text-white/70 whitespace-pre-line">
+                                {recipe.instructions}
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <p className="text-sm text-white/70 font-medium mb-1">Instructions:</p>
-                        <p className="text-sm text-white/80 whitespace-pre-line">
-                          {recipe.instructions}
-                        </p>
-                      </div>
-                    </>
-                  )}
+                    );
+                  })}
                 </div>
-              );
-            })}
+              )}
+            </div>
           </div>
-        )}
-
-        {/* Empty state */}
-        {(!savedRecipes || savedRecipes.length === 0) && suggestions.length === 0 && !loading && (
-          <div className="text-center text-white/40 py-12">
-            <ChefHat size={48} className="mx-auto mb-3 opacity-50" />
-            <p>Tell us what ingredients you have and we'll suggest recipes!</p>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { GripHorizontal, Palette } from 'lucide-react';
+import { GripHorizontal, Palette, Maximize2, Minimize2 } from 'lucide-react';
 
 const WIDGET_COLOR_PRESETS = [
   { label: 'Theme default', value: '' },
@@ -33,15 +33,17 @@ export function WidgetContainer({
   onColorChange,
 }: WidgetContainerProps) {
   const [showPalette, setShowPalette] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const bgColor = widgetColor || 'var(--theme-card, rgba(30, 41, 59, 0.7))';
 
   return (
+    <>
     <div
       className={`
         rounded-2xl border backdrop-blur-xl
         shadow-lg shadow-black/20
-        p-4 flex flex-col min-h-0 h-full relative overflow-hidden
+        p-4 flex flex-col min-h-0 h-full relative overflow-hidden group
         ${editMode ? 'ring-1' : ''}
         ${className}
       `}
@@ -51,6 +53,15 @@ export function WidgetContainer({
         ...(editMode ? { '--tw-ring-color': 'color-mix(in srgb, var(--theme-accent, #3b82f6) 40%, transparent)' } as React.CSSProperties : {}),
       }}
     >
+      {/* Full-screen expand button */}
+      <button
+        onClick={() => setIsExpanded(true)}
+        className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/20 opacity-0 group-hover:opacity-100 hover:bg-black/40 transition-all z-10"
+        title="Full screen"
+      >
+        <Maximize2 size={14} />
+      </button>
+
       {editMode && (
         <div
           className="drag-handle absolute top-0 left-0 right-0 h-10 cursor-grab active:cursor-grabbing z-10 flex items-center justify-center gap-2"
@@ -106,5 +117,26 @@ export function WidgetContainer({
       </h2>
       <div className="flex-1 min-h-0">{children}</div>
     </div>
+
+    {/* Full-screen overlay */}
+    {isExpanded && (
+      <div className="fixed inset-0 z-50 p-4 flex flex-col" style={{ backgroundColor: bgColor }}>
+        <button
+          onClick={() => setIsExpanded(false)}
+          className="absolute top-4 right-4 p-2 rounded-lg bg-black/30 hover:bg-black/50 transition-colors z-10"
+          title="Exit full screen"
+        >
+          <Minimize2 size={20} />
+        </button>
+        <h2
+          className="text-sm font-semibold uppercase tracking-widest mb-2 select-none"
+          style={{ color: 'color-mix(in srgb, var(--theme-accent-light, #60a5fa) 50%, rgba(255,255,255,0.4))' }}
+        >
+          {title}
+        </h2>
+        <div className="flex-1 overflow-auto mt-4">{children}</div>
+      </div>
+    )}
+    </>
   );
 }

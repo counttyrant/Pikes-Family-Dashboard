@@ -11,6 +11,7 @@ import ChoreChart from './pages/ChoreChart'
 import ShoppingNotes from './pages/ShoppingNotes'
 import ActivitiesPage from './pages/ActivitiesPage'
 import RecipesPage from './pages/RecipesPage'
+import JellyfinPage from './pages/JellyfinPage'
 import { SettingsPanel } from './components/settings/SettingsPanel'
 import { AiAssistant } from './components/ai/AiAssistant'
 import { PhotoSlideshow } from './components/widgets/PhotoSlideshow'
@@ -71,9 +72,9 @@ function AppContent() {
   }, [settings])
 
   // Screen saver / idle detection
+  const screenSaverTimeout = settings?.screenSaverTimeout || 300;
   useEffect(() => {
-    if (!settings) return
-    const timeout = (settings.screenSaverTimeout || 300) * 1000
+    const timeout = screenSaverTimeout * 1000
     let timer: ReturnType<typeof setTimeout>
 
     const reset = () => {
@@ -90,7 +91,7 @@ function AppContent() {
       clearTimeout(timer)
       events.forEach(e => window.removeEventListener(e, reset))
     }
-  }, [settings])
+  }, [screenSaverTimeout])
 
   // Fullscreen handler
   useEffect(() => {
@@ -146,6 +147,8 @@ function AppContent() {
             openaiModel={settings?.openaiModel || 'gpt-4o-mini'}
           />
         );
+      case 'jellyfin':
+        return <JellyfinPage />;
       default:
         return null;
     }

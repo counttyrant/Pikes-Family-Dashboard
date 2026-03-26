@@ -8,6 +8,7 @@ import {
   CheckSquare,
   Quote,
   Sparkles,
+  ChefHat,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -100,6 +101,15 @@ export const WIDGET_REGISTRY: WidgetDefinition[] = [
     description: 'Kid-friendly activity planner with fun icons',
     icon: Sparkles,
     defaultLayout: { w: 4, h: 5 },
+    minW: 3,
+    minH: 3,
+  },
+  {
+    id: 'recipes',
+    label: 'Recipes',
+    description: 'Quick recipe finder with voice input',
+    icon: ChefHat,
+    defaultLayout: { w: 4, h: 4 },
     minW: 3,
     minH: 3,
   },

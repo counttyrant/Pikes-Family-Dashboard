@@ -5,6 +5,7 @@ export const ALL_PAGES = [
   { id: 'shopping', label: 'Shopping' },
   { id: 'activities', label: 'Activities' },
   { id: 'recipes', label: 'Recipes' },
+  { id: 'jellyfin', label: 'Jellyfin' },
 ] as const;
 
 export const DEFAULT_PAGE_ORDER = ALL_PAGES.map(p => p.id);
