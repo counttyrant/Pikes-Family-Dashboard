@@ -38,7 +38,8 @@ async function cloudPut(collection: string, data: Record<string, unknown>): Prom
       body: JSON.stringify({ ...data, collection }),
     });
     if (!res.ok) {
-      console.warn(`Cloud PUT ${collection}/${data.id} failed:`, res.status);
+      const errBody = await res.text().catch(() => '');
+      console.warn(`Cloud PUT ${collection}/${data.id} failed: ${res.status}`, errBody);
       return null;
     }
     return res.json();

@@ -66,8 +66,12 @@ export async function saveSettings(
   const current = await getSettings();
   const merged = { ...current, ...settings, id: 'main' };
   await db.settings.put(merged);
-  // Fire-and-forget cloud sync
-  syncToCloud('settings', merged).catch(() => {});
+  // Sync to cloud — await so callers know if it succeeded
+  try {
+    await syncToCloud('settings', merged);
+  } catch (err) {
+    console.warn('Cloud sync failed for settings:', err);
+  }
 }
 
 // ---------------------------------------------------------------------------
