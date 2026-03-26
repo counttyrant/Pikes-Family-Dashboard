@@ -262,10 +262,27 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
 
   /* -- Immich Albums ------------------------------------------------------ */
 
+  const [immichLoading, setImmichLoading] = useState(false);
+  const [immichError, setImmichError] = useState('');
+
   const handleFetchImmichAlbums = async () => {
-    if (!settings?.immichUrl || !settings?.immichApiKey) return;
-    const albums = await fetchImmichAlbums(settings.immichUrl, settings.immichApiKey);
-    setImmichAlbums(albums);
+    if (!settings?.immichUrl || !settings?.immichApiKey) {
+      setImmichError('Set Immich URL and API key first');
+      return;
+    }
+    setImmichLoading(true);
+    setImmichError('');
+    try {
+      const albums = await fetchImmichAlbums(settings.immichUrl, settings.immichApiKey);
+      if (albums.length === 0) {
+        setImmichError('No albums found — check URL and API key. CORS may block direct browser requests.');
+      }
+      setImmichAlbums(albums);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setImmichError(`Failed: ${msg}`);
+    }
+    setImmichLoading(false);
   };
 
   /* -- Google Photos Albums ----------------------------------------------- */
@@ -726,10 +743,14 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                 />
                 <button
                   onClick={handleFetchImmichAlbums}
-                  className="px-4 py-2 text-sm bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-400 transition-colors"
+                  disabled={immichLoading}
+                  className="px-4 py-2 text-sm bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-400 transition-colors disabled:opacity-50"
                 >
-                  Load Albums
+                  {immichLoading ? 'Loading…' : 'Load Albums'}
                 </button>
+                {immichError && (
+                  <p className="text-xs text-red-400">{immichError}</p>
+                )}
                 {immichAlbums.length > 0 && (
                   <div className="space-y-1">
                     {immichAlbums.map((a) => (

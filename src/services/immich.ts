@@ -2,25 +2,21 @@ export async function fetchImmichAlbums(
   serverUrl: string,
   apiKey: string
 ): Promise<{ id: string; albumName: string; assetCount: number }[]> {
-  try {
-    const response = await fetch(`${serverUrl}/api/albums`, {
-      headers: { 'x-api-key': apiKey },
-    });
+  const url = serverUrl.replace(/\/+$/, '');
+  const response = await fetch(`${url}/api/albums`, {
+    headers: { 'x-api-key': apiKey },
+  });
 
-    if (!response.ok) {
-      throw new Error(`Immich API error: ${response.status} ${response.statusText}`);
-    }
-
-    const albums = await response.json();
-    return albums.map((album: { id: string; albumName: string; assetCount: number }) => ({
-      id: album.id,
-      albumName: album.albumName,
-      assetCount: album.assetCount,
-    }));
-  } catch (error) {
-    console.warn('Failed to fetch Immich albums:', error);
-    return [];
+  if (!response.ok) {
+    throw new Error(`Immich API error: ${response.status} ${response.statusText}`);
   }
+
+  const albums = await response.json();
+  return albums.map((album: { id: string; albumName: string; assetCount: number }) => ({
+    id: album.id,
+    albumName: album.albumName,
+    assetCount: album.assetCount,
+  }));
 }
 
 export async function fetchImmichAlbumPhotos(
