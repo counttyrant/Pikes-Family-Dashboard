@@ -37,6 +37,7 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
+  const [micError, setMicError] = useState<string | null>(null);
   const [speakEnabled, setSpeakEnabled] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -47,24 +48,37 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Focus input when panel opens
+  // Focus input when panel opens + warm up voice list
   useEffect(() => {
-    if (isOpen) inputRef.current?.focus();
+    if (isOpen) {
+      inputRef.current?.focus();
+      window.speechSynthesis?.getVoices();
+    }
   }, [isOpen]);
 
   /* -- Text-to-speech ---------------------------------------------------- */
 
   const speak = (text: string) => {
     if (!speakEnabled || !window.speechSynthesis) return;
-    // Stop any ongoing speech
     window.speechSynthesis.cancel();
-    // Strip emoji/symbols for cleaner speech
     const clean = text.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}⚠️]/gu, '').trim();
     if (!clean) return;
     const utterance = new SpeechSynthesisUtterance(clean);
     utterance.lang = 'en-US';
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
+    utterance.rate = 0.95;
+    utterance.pitch = 1.1;
+
+    // Pick a friendlier voice — prefer female English voices
+    const voices = window.speechSynthesis.getVoices();
+    const friendly =
+      voices.find(v => v.name.includes('Zira')) ??                // Edge/Windows Zira
+      voices.find(v => v.name.includes('Samantha')) ??            // macOS Samantha
+      voices.find(v => v.name.includes('Google US English')) ??   // Chrome
+      voices.find(v => v.name.includes('Jenny')) ??               // Edge Neural Jenny
+      voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) ??
+      voices.find(v => v.lang.startsWith('en'));
+    if (friendly) utterance.voice = friendly;
+
     window.speechSynthesis.speak(utterance);
   };
 
@@ -148,6 +162,8 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
   /* -- Voice input ------------------------------------------------------- */
 
   const toggleVoice = () => {
+    setMicError(null);
+
     if (listening) {
       recognitionRef.current?.stop();
       setListening(false);
@@ -155,7 +171,10 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
     }
 
     const SpeechRecognitionCtor = getSpeechRecognition();
-    if (!SpeechRecognitionCtor) return;
+    if (!SpeechRecognitionCtor) {
+      setMicError('Speech recognition not supported in this browser');
+      return;
+    }
 
     const recognition = new SpeechRecognitionCtor();
     recognition.continuous = false;
@@ -171,12 +190,27 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
       setListening(false);
     };
 
-    recognition.onerror = () => setListening(false);
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      setListening(false);
+      if (event.error === 'not-allowed') {
+        setMicError('Microphone access denied — check browser permissions');
+      } else if (event.error === 'no-speech') {
+        setMicError('No speech detected — try again');
+      } else {
+        setMicError(`Mic error: ${event.error}`);
+      }
+      setTimeout(() => setMicError(null), 5000);
+    };
     recognition.onend = () => setListening(false);
 
     recognitionRef.current = recognition;
-    recognition.start();
-    setListening(true);
+    try {
+      recognition.start();
+      setListening(true);
+    } catch (err) {
+      setMicError('Could not start microphone');
+      console.warn('Speech recognition start error:', err);
+    }
   };
 
   /* -- Render ------------------------------------------------------------ */
@@ -267,6 +301,9 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
 
         {/* Input */}
         <div className="p-3 border-t border-white/10 shrink-0">
+          {micError && (
+            <p className="text-xs text-red-400 mb-2 px-1">{micError}</p>
+          )}
           <div className="flex gap-2">
             <button
               onClick={toggleVoice}

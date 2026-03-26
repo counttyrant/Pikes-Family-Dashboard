@@ -17,6 +17,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { fetchImmichAlbums } from '../../services/immich';
 import { fetchGooglePhotosAlbums } from '../../services/googlePhotos';
 import { fetchCalendarList } from '../../services/googleCalendar';
+import { saveAllToCloud, loadAllFromCloud } from '../../services/cloudSync';
 import {
   Settings,
   X,
@@ -27,6 +28,8 @@ import {
   Upload,
   Calendar,
   Cloud,
+  CloudUpload,
+  CloudDownload,
   Users,
   Image as ImageIcon,
   Timer,
@@ -155,6 +158,7 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
   const [calendarError, setCalendarError] = useState<string | null>(null);
   const [calendarErrorIs403, setCalendarErrorIs403] = useState(false);
   const [manualCalendarEmail, setManualCalendarEmail] = useState('');
+  const [cloudStatus, setCloudStatus] = useState<'idle' | 'saving' | 'loading' | 'saved' | 'loaded' | 'error'>('idle');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
@@ -388,6 +392,45 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
             </button>
           </div>
         )}
+
+        {/* Cloud Sync Bar */}
+        <div className="flex items-center gap-2 p-3 border-b border-white/10">
+          <Cloud size={16} className="text-blue-400 shrink-0" />
+          <span className="text-xs text-white/60 flex-1">Cloud Sync</span>
+          {cloudStatus === 'saved' && <span className="text-xs text-green-400">✓ Saved</span>}
+          {cloudStatus === 'loaded' && <span className="text-xs text-green-400">✓ Loaded</span>}
+          {cloudStatus === 'error' && <span className="text-xs text-red-400">Failed</span>}
+          <button
+            disabled={cloudStatus === 'saving' || cloudStatus === 'loading'}
+            onClick={async () => {
+              setCloudStatus('saving');
+              const ok = await saveAllToCloud();
+              setCloudStatus(ok ? 'saved' : 'error');
+              setTimeout(() => setCloudStatus('idle'), 3000);
+            }}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-400 transition-colors disabled:opacity-50"
+          >
+            <CloudUpload size={14} />
+            {cloudStatus === 'saving' ? 'Saving…' : 'Save'}
+          </button>
+          <button
+            disabled={cloudStatus === 'saving' || cloudStatus === 'loading'}
+            onClick={async () => {
+              setCloudStatus('loading');
+              const ok = await loadAllFromCloud();
+              if (ok) {
+                const fresh = await getSettings();
+                setSettings(fresh);
+              }
+              setCloudStatus(ok ? 'loaded' : 'error');
+              setTimeout(() => setCloudStatus('idle'), 3000);
+            }}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 rounded-lg text-emerald-400 transition-colors disabled:opacity-50"
+          >
+            <CloudDownload size={14} />
+            {cloudStatus === 'loading' ? 'Loading…' : 'Load'}
+          </button>
+        </div>
 
         {/* Sections */}
         <div className="p-4 space-y-1">

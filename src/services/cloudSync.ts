@@ -111,41 +111,84 @@ export async function pullLocalStorageFromCloud(key: string): Promise<string | n
   return null;
 }
 
+// Cosmos DB metadata fields to strip when pulling into IndexedDB
+const COSMOS_META = ['collection', '_rid', '_self', '_etag', '_attachments', '_ts', '_lastModified'];
+
+function stripCosmosMeta(doc: Record<string, unknown>): Record<string, unknown> {
+  const clean = { ...doc };
+  for (const key of COSMOS_META) delete clean[key];
+  return clean;
+}
+
+const WIDGET_KEYS = [
+  'pfd-chores', 'pfd-todos', 'pfd-notes', 'pfd-drawing', 'pfd-activities',
+  'pfd-clock-size',
+];
+
 /**
- * Initialize: test API, then pull settings from cloud and merge into local IndexedDB.
- * Also pulls localStorage widget data.
+ * Initialize: test API, pull settings + widget data from cloud into local.
  */
 export async function initCloudSync(): Promise<boolean> {
   try {
-    // Test if API is available
     const res = await fetch(`${API_BASE}?collection=settings&id=_ping`, {
       signal: AbortSignal.timeout(3000),
     });
-    // 404 is fine (means API works but item doesn't exist)
     if (!res.ok && res.status !== 404) return false;
 
-    // Pull settings from cloud and merge into local
     const cloudSettings = await pullOneFromCloud('settings', 'main');
     if (cloudSettings) {
+      const clean = stripCosmosMeta(cloudSettings);
       const { db } = await import('../db');
       const local = await db.settings.get('main');
       if (!local) {
-        await db.settings.put(cloudSettings as never);
+        await db.settings.put({ ...clean, id: 'main' } as never);
       } else {
-        const merged = { ...local, ...cloudSettings, id: 'main' };
-        await db.settings.put(merged as never);
+        await db.settings.put({ ...local, ...clean, id: 'main' } as never);
       }
     }
 
-    // Pull localStorage widget data
-    const WIDGET_KEYS = [
-      'pfd-chores', 'pfd-todos', 'pfd-notes', 'pfd-drawing', 'pfd-activities',
-      'pfd-clock-size',
-    ];
     for (const key of WIDGET_KEYS) {
       await pullLocalStorageFromCloud(key).catch(() => {});
     }
+    return true;
+  } catch {
+    return false;
+  }
+}
 
+/**
+ * Save all settings + widget data to cloud (manual).
+ */
+export async function saveAllToCloud(): Promise<boolean> {
+  try {
+    const { db } = await import('../db');
+    const settings = await db.settings.get('main');
+    if (settings) {
+      await syncToCloud('settings', settings as unknown as Record<string, unknown>);
+    }
+    for (const key of WIDGET_KEYS) {
+      await syncLocalStorageToCloud(key).catch(() => {});
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Load all settings + widget data from cloud (manual).
+ */
+export async function loadAllFromCloud(): Promise<boolean> {
+  try {
+    const cloudSettings = await pullOneFromCloud('settings', 'main');
+    if (cloudSettings) {
+      const clean = stripCosmosMeta(cloudSettings);
+      const { db } = await import('../db');
+      await db.settings.put({ ...clean, id: 'main' } as never);
+    }
+    for (const key of WIDGET_KEYS) {
+      await pullLocalStorageFromCloud(key).catch(() => {});
+    }
     return true;
   } catch {
     return false;
