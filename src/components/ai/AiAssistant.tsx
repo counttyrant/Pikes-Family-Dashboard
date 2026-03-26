@@ -12,9 +12,12 @@ interface AiAssistantProps {
   azureEndpoint?: string;
   azureDeployment?: string;
   openaiModel?: string;
+  ttsEngine?: 'browser' | 'openai';
   ttsVoiceName?: string;
   ttsRate?: number;
   ttsPitch?: number;
+  openaiTtsVoice?: string;
+  openaiTtsModel?: string;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -34,7 +37,7 @@ function getSpeechRecognition(): (new () => SpeechRecognition) | null {
 /*  Component                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '', azureDeployment = '', openaiModel = 'gpt-4o-mini', ttsVoiceName = '', ttsRate = 0.95, ttsPitch = 1.1 }: AiAssistantProps) {
+export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '', azureDeployment = '', openaiModel = 'gpt-4o-mini', ttsEngine = 'openai', ttsVoiceName = '', ttsRate = 0.95, ttsPitch = 1.1, openaiTtsVoice = 'nova', openaiTtsModel = 'tts-1' }: AiAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -42,6 +45,7 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
   const [listening, setListening] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
   const [speakEnabled, setSpeakEnabled] = useState(true);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -61,21 +65,57 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
 
   /* -- Text-to-speech ---------------------------------------------------- */
 
-  const speak = (text: string) => {
-    if (!speakEnabled || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
+  const speak = async (text: string) => {
+    if (!speakEnabled) return;
     const clean = text.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}⚠️]/gu, '').trim();
     if (!clean) return;
+
+    // Stop any current audio
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    window.speechSynthesis?.cancel();
+
+    // Use OpenAI TTS if configured
+    if (ttsEngine === 'openai' && apiKey && aiProvider !== 'azure-openai') {
+      try {
+        const res = await fetch('https://api.openai.com/v1/audio/speech', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: openaiTtsModel || 'tts-1',
+            input: clean.slice(0, 4096), // API limit
+            voice: openaiTtsVoice || 'nova',
+            speed: ttsRate,
+          }),
+        });
+        if (res.ok) {
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          audioRef.current = audio;
+          audio.onended = () => URL.revokeObjectURL(url);
+          audio.play();
+          return;
+        }
+        console.warn('OpenAI TTS failed, falling back to browser:', res.status);
+      } catch (err) {
+        console.warn('OpenAI TTS error, falling back to browser:', err);
+      }
+    }
+
+    // Fallback: browser speechSynthesis
+    if (!window.speechSynthesis) return;
     const utterance = new SpeechSynthesisUtterance(clean);
     utterance.lang = 'en-US';
     utterance.rate = ttsRate;
     utterance.pitch = ttsPitch;
-
     const voices = window.speechSynthesis.getVoices();
-    // Use user-selected voice if set, otherwise auto-select a friendly one
-    const selected = ttsVoiceName
-      ? voices.find(v => v.name === ttsVoiceName)
-      : null;
+    const selected = ttsVoiceName ? voices.find(v => v.name === ttsVoiceName) : null;
     const friendly = selected ??
       voices.find(v => v.name.includes('Zira')) ??
       voices.find(v => v.name.includes('Samantha')) ??
@@ -84,7 +124,6 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
       voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) ??
       voices.find(v => v.lang.startsWith('en'));
     if (friendly) utterance.voice = friendly;
-
     window.speechSynthesis.speak(utterance);
   };
 

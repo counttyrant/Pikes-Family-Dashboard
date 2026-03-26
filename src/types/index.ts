@@ -192,9 +192,12 @@ export interface DashboardSettings {
   eventColorOverrides: Record<string, string>;
   calendarDaysToShow: number;
   weekStartsOn: 0 | 1; // 0 = Sunday, 1 = Monday
-  ttsVoiceName: string;   // preferred voice name (empty = auto)
+  ttsEngine: 'browser' | 'openai';  // which TTS engine to use
+  ttsVoiceName: string;   // browser voice name (empty = auto)
   ttsRate: number;        // 0.5–2.0
   ttsPitch: number;       // 0.5–2.0
+  openaiTtsVoice: string; // OpenAI voice: alloy, echo, fable, onyx, nova, shimmer
+  openaiTtsModel: string; // tts-1 or tts-1-hd
   enabledPages: string[]; // ordered list of enabled page IDs
 }
 

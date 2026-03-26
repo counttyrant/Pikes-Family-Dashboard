@@ -258,9 +258,12 @@ function AppContent() {
             azureEndpoint={settings?.azureEndpoint || ''}
             azureDeployment={settings?.azureDeployment || ''}
             openaiModel={settings?.openaiModel || 'gpt-4o-mini'}
+            ttsEngine={settings?.ttsEngine || 'openai'}
             ttsVoiceName={settings?.ttsVoiceName || ''}
             ttsRate={settings?.ttsRate ?? 0.95}
             ttsPitch={settings?.ttsPitch ?? 1.1}
+            openaiTtsVoice={settings?.openaiTtsVoice || 'nova'}
+            openaiTtsModel={settings?.openaiTtsModel || 'tts-1'}
           />
         </>
       )}

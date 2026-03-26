@@ -49,9 +49,12 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   eventColorOverrides: {},
   calendarDaysToShow: 7,
   weekStartsOn: 0,
+  ttsEngine: 'openai',
   ttsVoiceName: '',
   ttsRate: 0.95,
   ttsPitch: 1.1,
+  openaiTtsVoice: 'nova',
+  openaiTtsModel: 'tts-1',
   enabledPages: ['dashboard', 'chores', 'shopping', 'activities', 'recipes', 'jellyfin'],
 };
 

@@ -1114,53 +1114,141 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
             {/* Voice settings */}
             <div className="border-t border-white/10 pt-3 mt-3 space-y-3">
               <span className="text-xs text-white/60 font-medium">Voice Settings</span>
-              <VoiceSelector
-                voiceName={settings.ttsVoiceName || ''}
-                onVoiceChange={(name) => save({ ttsVoiceName: name })}
-              />
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="text-xs text-white/50">Speed ({settings.ttsRate?.toFixed(2) ?? '0.95'})</label>
-                  <input
-                    type="range"
-                    min="0.5"
-                    max="2"
-                    step="0.05"
-                    value={settings.ttsRate ?? 0.95}
-                    onChange={(e) => save({ ttsRate: parseFloat(e.target.value) })}
-                    className="w-full accent-teal-500"
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs text-white/50">Pitch ({settings.ttsPitch?.toFixed(2) ?? '1.10'})</label>
-                  <input
-                    type="range"
-                    min="0.5"
-                    max="2"
-                    step="0.05"
-                    value={settings.ttsPitch ?? 1.1}
-                    onChange={(e) => save({ ttsPitch: parseFloat(e.target.value) })}
-                    className="w-full accent-teal-500"
-                  />
-                </div>
+
+              {/* Engine selector */}
+              <div className="flex gap-2">
+                {(['openai', 'browser'] as const).map((eng) => (
+                  <button
+                    key={eng}
+                    onClick={() => save({ ttsEngine: eng })}
+                    className={`flex-1 px-3 py-2 text-xs rounded-lg transition-all ${
+                      (settings.ttsEngine || 'openai') === eng
+                        ? 'bg-teal-500/30 text-teal-300 ring-1 ring-teal-500/50'
+                        : 'bg-white/5 text-white/50 hover:bg-white/10'
+                    }`}
+                  >
+                    {eng === 'openai' ? '🤖 OpenAI TTS' : '🔊 Browser Voice'}
+                  </button>
+                ))}
               </div>
-              <button
-                onClick={() => {
-                  const synth = window.speechSynthesis;
-                  if (!synth) return;
-                  synth.cancel();
-                  const utt = new SpeechSynthesisUtterance('Hi! I\'m your family assistant. How can I help today?');
-                  utt.rate = settings.ttsRate ?? 0.95;
-                  utt.pitch = settings.ttsPitch ?? 1.1;
-                  const voices = synth.getVoices();
-                  const v = settings.ttsVoiceName ? voices.find(x => x.name === settings.ttsVoiceName) : voices.find(x => x.lang.startsWith('en'));
-                  if (v) utt.voice = v;
-                  synth.speak(utt);
-                }}
-                className="text-xs bg-teal-500/20 hover:bg-teal-500/30 text-teal-400 px-3 py-1.5 rounded-lg transition-colors"
-              >
-                🔊 Test Voice
-              </button>
+
+              {(settings.ttsEngine || 'openai') === 'openai' ? (
+                <>
+                  {/* OpenAI voice picker */}
+                  <div>
+                    <label className="text-xs text-white/50 mb-1 block">Voice</label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[
+                        { id: 'nova', label: '✨ Nova', desc: 'Warm female' },
+                        { id: 'shimmer', label: '💫 Shimmer', desc: 'Gentle female' },
+                        { id: 'alloy', label: '🎵 Alloy', desc: 'Neutral' },
+                        { id: 'echo', label: '🌊 Echo', desc: 'Smooth male' },
+                        { id: 'fable', label: '📖 Fable', desc: 'British' },
+                        { id: 'onyx', label: '🪨 Onyx', desc: 'Deep male' },
+                      ].map((v) => (
+                        <button
+                          key={v.id}
+                          onClick={() => save({ openaiTtsVoice: v.id })}
+                          className={`p-2 text-left rounded-lg transition-all ${
+                            (settings.openaiTtsVoice || 'nova') === v.id
+                              ? 'bg-teal-500/30 text-teal-300 ring-1 ring-teal-500/50'
+                              : 'bg-white/5 text-white/50 hover:bg-white/10'
+                          }`}
+                        >
+                          <div className="text-xs font-medium">{v.label}</div>
+                          <div className="text-[0.6rem] text-white/30">{v.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Quality */}
+                  <div className="flex gap-2">
+                    {(['tts-1', 'tts-1-hd'] as const).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => save({ openaiTtsModel: m })}
+                        className={`flex-1 px-3 py-1.5 text-xs rounded-lg transition-all ${
+                          (settings.openaiTtsModel || 'tts-1') === m
+                            ? 'bg-teal-500/30 text-teal-300 ring-1 ring-teal-500/50'
+                            : 'bg-white/5 text-white/50 hover:bg-white/10'
+                        }`}
+                      >
+                        {m === 'tts-1' ? 'Standard' : 'HD Quality'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Speed slider */}
+                  <div>
+                    <label className="text-xs text-white/50">Speed ({(settings.ttsRate ?? 0.95).toFixed(2)})</label>
+                    <input type="range" min="0.5" max="2" step="0.05" value={settings.ttsRate ?? 0.95} onChange={(e) => save({ ttsRate: parseFloat(e.target.value) })} className="w-full accent-teal-500" />
+                  </div>
+
+                  {/* Test button — uses OpenAI TTS */}
+                  <button
+                    onClick={async () => {
+                      if (!settings.openaiApiKey) return;
+                      try {
+                        const res = await fetch('https://api.openai.com/v1/audio/speech', {
+                          method: 'POST',
+                          headers: { 'Authorization': `Bearer ${settings.openaiApiKey}`, 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ model: settings.openaiTtsModel || 'tts-1', input: "Hi! I'm your family assistant. How can I help today?", voice: settings.openaiTtsVoice || 'nova', speed: settings.ttsRate ?? 0.95 }),
+                        });
+                        if (res.ok) {
+                          const blob = await res.blob();
+                          const url = URL.createObjectURL(blob);
+                          const audio = new Audio(url);
+                          audio.onended = () => URL.revokeObjectURL(url);
+                          audio.play();
+                        } else {
+                          alert(`TTS failed: ${res.status} — check your OpenAI API key`);
+                        }
+                      } catch (err) {
+                        alert(`TTS error: ${err}`);
+                      }
+                    }}
+                    className="text-xs bg-teal-500/20 hover:bg-teal-500/30 text-teal-400 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    🔊 Test Voice
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Browser voice settings (existing) */}
+                  <VoiceSelector
+                    voiceName={settings.ttsVoiceName || ''}
+                    onVoiceChange={(name) => save({ ttsVoiceName: name })}
+                  />
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="text-xs text-white/50">Speed ({settings.ttsRate?.toFixed(2) ?? '0.95'})</label>
+                      <input type="range" min="0.5" max="2" step="0.05" value={settings.ttsRate ?? 0.95} onChange={(e) => save({ ttsRate: parseFloat(e.target.value) })} className="w-full accent-teal-500" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-xs text-white/50">Pitch ({settings.ttsPitch?.toFixed(2) ?? '1.10'})</label>
+                      <input type="range" min="0.5" max="2" step="0.05" value={settings.ttsPitch ?? 1.1} onChange={(e) => save({ ttsPitch: parseFloat(e.target.value) })} className="w-full accent-teal-500" />
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const synth = window.speechSynthesis;
+                      if (!synth) return;
+                      synth.cancel();
+                      const utt = new SpeechSynthesisUtterance('Hi! I\'m your family assistant. How can I help today?');
+                      utt.rate = settings.ttsRate ?? 0.95;
+                      utt.pitch = settings.ttsPitch ?? 1.1;
+                      const voices = synth.getVoices();
+                      const v = settings.ttsVoiceName ? voices.find(x => x.name === settings.ttsVoiceName) : voices.find(x => x.lang.startsWith('en'));
+                      if (v) utt.voice = v;
+                      synth.speak(utt);
+                    }}
+                    className="text-xs bg-teal-500/20 hover:bg-teal-500/30 text-teal-400 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    🔊 Test Voice
+                  </button>
+                </>
+              )}
             </div>
           </Section>
 
