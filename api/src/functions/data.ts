@@ -29,7 +29,14 @@ app.http('data', {
   route: 'data',
   handler: async (req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> => {
     try {
-      const collection = req.query.get('collection') || '';
+      let collection = req.query.get('collection') || '';
+
+      // For PUT/POST, also check request body for collection
+      let parsedBody: Record<string, unknown> | null = null;
+      if ((req.method === 'PUT' || req.method === 'POST') && !collection) {
+        parsedBody = (await req.json()) as Record<string, unknown>;
+        collection = (parsedBody.collection as string) || '';
+      }
 
       if (!collection || !VALID_COLLECTIONS.includes(collection)) {
         return { status: 400, jsonBody: { error: `Invalid collection: ${collection}` } };
@@ -64,7 +71,7 @@ app.http('data', {
 
         case 'POST':
         case 'PUT': {
-          const body = (await req.json()) as Record<string, unknown>;
+          const body = parsedBody ?? (await req.json()) as Record<string, unknown>;
           if (!body.id) {
             body.id = crypto.randomUUID();
           }
