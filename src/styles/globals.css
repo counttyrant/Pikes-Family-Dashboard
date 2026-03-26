@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+/* Custom scrollbar hiding for touch display */
+* { scrollbar-width: none; }
+*::-webkit-scrollbar { display: none; }
+
+/* Swiper full height */
+.swiper { width: 100%; height: 100vh; }
+.swiper-slide { overflow-y: auto; }
+
+/* Smooth transitions for night mode */
+body { transition: background-color 0.5s ease, color 0.5s ease; }
+
+/* Touch-friendly tap targets */
+button, [role="button"], input, select { min-height: 44px; min-width: 44px; }
+
+/* react-grid-layout styles */
+.react-grid-layout {
+  position: relative;
+  transition: height 200ms ease;
+}
+.react-grid-item {
+  transition: all 200ms ease;
+  transition-property: left, top, width, height;
+}
+.react-grid-item.cssTransforms {
+  transition-property: transform, width, height;
+}
+.react-grid-item.resizing {
+  transition: none;
+  z-index: 1;
+  will-change: width, height;
+}
+.react-grid-item.react-draggable-dragging {
+  transition: none;
+  z-index: 3;
+  will-change: transform;
+}
+.react-grid-item.dropping {
+  visibility: hidden;
+}
+.react-grid-item > .react-resizable-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+}
+.react-grid-item > .react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid rgba(255, 255, 255, 0.3);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-se {
+  bottom: 0;
+  right: 0;
+  cursor: se-resize;
+}
+.react-grid-item.react-grid-placeholder {
+  background: rgba(59, 130, 246, 0.3);
+  border-radius: 0.5rem;
+}
+
+/* ── Dashboard Animations ───────────────────────────────────────────────── */
+
+@keyframes checkmark {
+  0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+  50% { transform: scale(1.3) rotate(0deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+.animate-checkmark {
+  animation: checkmark 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes bounce-in {
+  0% { transform: scale(0.3); opacity: 0; }
+  50% { transform: scale(1.08); }
+  70% { transform: scale(0.95); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-bounce-in {
+  animation: bounce-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes slide-in-bar {
+  from { width: 0%; }
+}
+.animate-slide-in {
+  animation: slide-in-bar 0.8s ease-out forwards;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.3s ease-out forwards;
+}
+
+@keyframes claim-pop {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.15); }
+  60%  { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+.animate-claim-pop {
+  animation: claim-pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
