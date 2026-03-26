@@ -1,0 +1,15 @@
+*.ts
+!*.d.ts
+*.map
+tsconfig.json
+esbuild.config.mjs
+local.settings.json
+src
+node_modules/@azure/cosmos
+node_modules/@azure/core-*
+node_modules/@azure/abort-controller
+node_modules/@azure/logger
+node_modules/tslib
+node_modules/typescript
+node_modules/.bin
+node_modules/.package-lock.json
