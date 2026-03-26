@@ -17,9 +17,9 @@ export function PhotoSlideshow() {
   const [slideInterval, setSlideInterval] = useState(15);
 
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [currentUrl, setCurrentUrl] = useState<string | null>(null);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [transitioning, setTransitioning] = useState(false);
+  const transitioningRef = useRef(false);
 
   const urlCache = useRef<Map<string, string>>(new Map());
 
@@ -73,7 +73,7 @@ export function PhotoSlideshow() {
   }, []);
 
   // Build combined URL list
-  const allUrls = useCallback(() => {
+  const getUrls = useCallback(() => {
     if (photoSource === 'local' && localPhotos && localPhotos.length > 0) {
       return localPhotos.map((p) => getUrl(p));
     }
@@ -81,41 +81,39 @@ export function PhotoSlideshow() {
     return DEFAULT_PHOTO_URLS;
   }, [photoSource, localPhotos, remoteUrls, getUrl]);
 
-  // Update current display
-  useEffect(() => {
-    const urls = allUrls();
-    if (urls.length === 0) {
-      setCurrentUrl(null);
-      setNextUrl(null);
-      return;
-    }
-    const safeIdx = currentIdx % urls.length;
-    setCurrentUrl(urls[safeIdx]);
-  }, [allUrls, currentIdx]);
+  // Compute current display URL directly from index (no separate effect)
+  const urls = getUrls();
+  const displayUrl = urls.length > 0 ? urls[currentIdx % urls.length] : null;
 
-  // Advance to next photo (used by timer and skip button)
+  // Advance to next photo
   const advancePhoto = useCallback(() => {
-    const urls = allUrls();
-    if (urls.length <= 1) return;
-    const nextIdx = (currentIdx + 1) % urls.length;
-    setNextUrl(urls[nextIdx]);
+    if (transitioningRef.current) return;
+    const currentUrls = getUrls();
+    if (currentUrls.length <= 1) return;
+
+    const nextIdx = (currentIdx + 1) % currentUrls.length;
+    setNextUrl(currentUrls[nextIdx]);
     setTransitioning(true);
+    transitioningRef.current = true;
+
     setTimeout(() => {
       setCurrentIdx(nextIdx);
       setTransitioning(false);
       setNextUrl(null);
+      transitioningRef.current = false;
     }, TRANSITION_MS);
-  }, [allUrls, currentIdx]);
+  }, [getUrls, currentIdx]);
 
-  // Slideshow timer
+  // Slideshow timer — use a ref to avoid recreating interval on every index change
+  const advanceRef = useRef(advancePhoto);
+  advanceRef.current = advancePhoto;
+
   useEffect(() => {
-    const urls = allUrls();
     if (urls.length <= 1) return;
-
     const intervalMs = (slideInterval || 15) * 1000;
-    const timer = setInterval(advancePhoto, intervalMs);
+    const timer = setInterval(() => advanceRef.current(), intervalMs);
     return () => clearInterval(timer);
-  }, [allUrls, slideInterval, advancePhoto]);
+  }, [urls.length, slideInterval]);
 
   return (
     <div className="fixed inset-0 -z-10 overflow-hidden">
@@ -126,11 +124,11 @@ export function PhotoSlideshow() {
         }}
       />
 
-      {currentUrl && (
+      {displayUrl && (
         <div
           className="absolute inset-0 bg-cover bg-center transition-opacity"
           style={{
-            backgroundImage: `url(${currentUrl})`,
+            backgroundImage: `url(${displayUrl})`,
             opacity: transitioning ? 0 : 1,
             transitionDuration: `${TRANSITION_MS}ms`,
           }}
@@ -150,13 +148,13 @@ export function PhotoSlideshow() {
 
       <div className="absolute inset-0 bg-black/40" />
 
-      {/* Skip photo button */}
+      {/* Skip photo button — bottom-left to avoid chat button overlap */}
       <button
-        onClick={advancePhoto}
-        className="absolute bottom-4 right-4 z-10 p-2 rounded-full bg-black/30 backdrop-blur-sm text-white/50 hover:text-white hover:bg-black/50 transition-all"
+        onClick={() => advancePhoto()}
+        className="fixed bottom-6 left-6 z-30 p-3 rounded-full bg-black/30 backdrop-blur-sm text-white/50 hover:text-white hover:bg-black/50 transition-all"
         title="Next photo"
       >
-        <SkipForward size={16} />
+        <SkipForward size={18} />
       </button>
     </div>
   );

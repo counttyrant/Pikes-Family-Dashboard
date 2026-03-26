@@ -149,6 +149,8 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
   const [immichAlbums, setImmichAlbums] = useState<{ id: string; albumName: string; assetCount: number }[]>([]);
   const [googleAlbums, setGoogleAlbums] = useState<{ id: string; title: string; mediaItemsCount: string }[]>([]);
   const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarInfo[]>([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarError, setCalendarError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
@@ -231,12 +233,24 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
   /* -- Google Calendars -------------------------------------------------- */
 
   const handleFetchGoogleCalendars = async () => {
-    if (!user?.accessToken) return;
+    if (!user?.accessToken) {
+      setCalendarError('Not signed in — sign in with Google first');
+      return;
+    }
+    setCalendarLoading(true);
+    setCalendarError(null);
     try {
       const calendars = await fetchCalendarList(user.accessToken);
       setGoogleCalendars(calendars);
+      if (calendars.length === 0) {
+        setCalendarError('No calendars found');
+      }
     } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to load calendars';
+      setCalendarError(msg);
       console.warn('Failed to fetch calendar list:', err);
+    } finally {
+      setCalendarLoading(false);
     }
   };
 
@@ -351,10 +365,14 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                 </div>
                 <button
                   onClick={handleFetchGoogleCalendars}
-                  className="px-4 py-2 text-sm bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-400 transition-colors"
+                  disabled={calendarLoading}
+                  className="px-4 py-2 text-sm bg-blue-500/20 hover:bg-blue-500/30 disabled:opacity-50 rounded-lg text-blue-400 transition-colors"
                 >
-                  Load Calendars
+                  {calendarLoading ? 'Loading…' : 'Load Calendars'}
                 </button>
+                {calendarError && (
+                  <p className="text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">{calendarError}</p>
+                )}
                 {googleCalendars.length > 0 && (
                   <div className="space-y-1">
                     <span className="text-xs text-white/60">Select calendars to display:</span>
@@ -444,7 +462,7 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
 
             {/* Slide interval */}
             <div className="space-y-2">
-              <span className="text-xs text-white/60">Slide Duration: {settings.slideInterval || 15}s</span>
+              <span className="text-xs text-white/60">Slide Duration (seconds)</span>
               <div className="flex items-center gap-3">
                 <input
                   type="range"
@@ -455,13 +473,17 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                   onChange={(e) => save({ slideInterval: parseInt(e.target.value) })}
                   className="flex-1 h-1.5 bg-white/10 rounded-full appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-400 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:cursor-pointer"
                 />
-                <span className="text-xs text-white/40 w-10 text-right">{settings.slideInterval || 15}s</span>
-              </div>
-              <div className="flex justify-between text-[0.6rem] text-white/30">
-                <span>5s</span>
-                <span>30s</span>
-                <span>60s</span>
-                <span>120s</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="600"
+                  value={settings.slideInterval || 15}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value);
+                    if (v > 0) save({ slideInterval: v });
+                  }}
+                  className="w-16 rounded-lg bg-white/10 border border-white/10 px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
               </div>
             </div>
 
