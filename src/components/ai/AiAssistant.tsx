@@ -190,7 +190,8 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
       setListening(false);
     };
 
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recognition.onerror = (event: any) => {
       setListening(false);
       if (event.error === 'not-allowed') {
         setMicError('Microphone access denied — check browser permissions');
