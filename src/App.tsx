@@ -20,18 +20,11 @@ import { db } from './db'
 import { getSettings } from './services/storage'
 import { initCloudSync } from './services/cloudSync'
 import type { DashboardSettings } from './types'
-import { Maximize, Minimize, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Maximize, Minimize, Settings, ChevronLeft, ChevronRight, ImagePlay, X } from 'lucide-react'
+import { ALL_PAGES, DEFAULT_PAGE_ORDER } from './constants/pages'
 
-// All available pages — id must match enabledPages values
-export const ALL_PAGES = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'chores', label: 'Chores' },
-  { id: 'shopping', label: 'Shopping' },
-  { id: 'activities', label: 'Activities' },
-  { id: 'recipes', label: 'Recipes' },
-] as const;
-
-export const DEFAULT_PAGE_ORDER = ALL_PAGES.map(p => p.id);
+// Re-export for any other consumers
+export { ALL_PAGES, DEFAULT_PAGE_ORDER } from './constants/pages'
 
 
 function AppContent() {
@@ -39,6 +32,7 @@ function AppContent() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isIdle, setIsIdle] = useState(false)
+  const [pictureMode, setPictureMode] = useState(false)
   const [settings, setSettings] = useState<DashboardSettings | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
   const swiperRef = useRef<SwiperType | null>(null)
@@ -161,7 +155,7 @@ function AppContent() {
   return (
     <div className={`h-screen w-screen overflow-hidden text-white ${nightClass} transition-all duration-500`}>
       {/* Screen saver overlay */}
-      {isIdle && (
+      {isIdle && !pictureMode && (
         <div
           className="fixed inset-0 z-50 bg-black cursor-pointer"
           onClick={() => setIsIdle(false)}
@@ -171,75 +165,103 @@ function AppContent() {
 
       <PhotoSlideshow />
 
-      {/* Top bar controls */}
-      <div className="fixed top-4 right-4 z-40 flex gap-2">
-        <button
-          onClick={() => setSettingsOpen(true)}
-          className="rounded-full bg-black/40 p-3 backdrop-blur-sm hover:bg-black/60 transition-colors"
+      {/* Picture mode — photos only, tap anywhere to exit */}
+      {pictureMode && (
+        <div
+          className="fixed inset-0 z-50 cursor-pointer"
+          onClick={() => setPictureMode(false)}
+          onTouchStart={() => setPictureMode(false)}
         >
-          <Settings size={20} />
-        </button>
-        <button
-          onClick={toggleFullscreen}
-          className="rounded-full bg-black/40 p-3 backdrop-blur-sm hover:bg-black/60 transition-colors"
-        >
-          {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
-        </button>
-      </div>
-
-      {/* Main swiper — driven by enabledPages */}
-      <Swiper
-        key={enabledPages.join(',')}
-        modules={[Pagination, Navigation]}
-        pagination={{ clickable: true }}
-        spaceBetween={0}
-        slidesPerView={1}
-        loop={enabledPages.length > 1}
-        className="h-full w-full"
-        touchRatio={1.5}
-        resistance={true}
-        resistanceRatio={0.85}
-        onSwiper={(sw) => { swiperRef.current = sw }}
-        onSlideChange={(sw) => setActiveIndex(sw.realIndex)}
-      >
-        {enabledPages.map((id) => (
-          <SwiperSlide key={id}>{renderPage(id)}</SwiperSlide>
-        ))}
-      </Swiper>
-
-      {/* Bottom navigation bar */}
-      <div className="fixed bottom-4 left-4 z-40 flex items-center gap-2">
-        <button
-          onClick={() => swiperRef.current?.slidePrev()}
-          className="rounded-full bg-black/40 p-2.5 backdrop-blur-sm hover:bg-black/60 transition-colors"
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <div className="bg-black/40 backdrop-blur-sm rounded-full px-3 py-1.5 text-xs font-medium">
-          {pageLabels[activeIndex] || ''}
+          <button
+            className="absolute top-4 right-4 rounded-full bg-black/40 p-3 backdrop-blur-sm hover:bg-black/60 transition-colors z-50"
+            onClick={(e) => { e.stopPropagation(); setPictureMode(false); }}
+          >
+            <X size={20} />
+          </button>
         </div>
-        <button
-          onClick={() => swiperRef.current?.slideNext()}
-          className="rounded-full bg-black/40 p-2.5 backdrop-blur-sm hover:bg-black/60 transition-colors"
-        >
-          <ChevronRight size={18} />
-        </button>
-      </div>
+      )}
 
-      {/* Settings panel */}
-      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      {/* Everything below is hidden in picture mode */}
+      {!pictureMode && (
+        <>
+          {/* Top bar controls */}
+          <div className="fixed top-4 right-4 z-40 flex gap-2">
+            <button
+              onClick={() => setPictureMode(true)}
+              className="rounded-full bg-black/40 p-3 backdrop-blur-sm hover:bg-black/60 transition-colors"
+              title="Picture mode"
+            >
+              <ImagePlay size={20} />
+            </button>
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="rounded-full bg-black/40 p-3 backdrop-blur-sm hover:bg-black/60 transition-colors"
+            >
+              <Settings size={20} />
+            </button>
+            <button
+              onClick={toggleFullscreen}
+              className="rounded-full bg-black/40 p-3 backdrop-blur-sm hover:bg-black/60 transition-colors"
+            >
+              {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+            </button>
+          </div>
 
-      {/* AI Assistant */}
-      <AiAssistant
-        apiKey={settings?.openaiApiKey || ''}
-        aiProvider={settings?.aiProvider || 'openai'}
-        azureEndpoint={settings?.azureEndpoint || ''}
-        azureDeployment={settings?.azureDeployment || ''}
-        openaiModel={settings?.openaiModel || 'gpt-4o-mini'}
-        ttsVoiceName={settings?.ttsVoiceName || ''}
-        ttsRate={settings?.ttsRate ?? 0.95}
-        ttsPitch={settings?.ttsPitch ?? 1.1}
-      />
+          {/* Main swiper — driven by enabledPages */}
+          <Swiper
+            key={enabledPages.join(',')}
+            modules={[Pagination, Navigation]}
+            pagination={{ clickable: true }}
+            spaceBetween={0}
+            slidesPerView={1}
+            loop={enabledPages.length > 1}
+            className="h-full w-full"
+            touchRatio={1.5}
+            resistance={true}
+            resistanceRatio={0.85}
+            onSwiper={(sw) => { swiperRef.current = sw }}
+            onSlideChange={(sw) => setActiveIndex(sw.realIndex)}
+          >
+            {enabledPages.map((id) => (
+              <SwiperSlide key={id}>{renderPage(id)}</SwiperSlide>
+            ))}
+          </Swiper>
+
+          {/* Bottom navigation bar */}
+          <div className="fixed bottom-4 left-4 z-40 flex items-center gap-2">
+            <button
+              onClick={() => swiperRef.current?.slidePrev()}
+              className="rounded-full bg-black/40 p-2.5 backdrop-blur-sm hover:bg-black/60 transition-colors"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <div className="bg-black/40 backdrop-blur-sm rounded-full px-3 py-1.5 text-xs font-medium">
+              {pageLabels[activeIndex] || ''}
+            </div>
+            <button
+              onClick={() => swiperRef.current?.slideNext()}
+              className="rounded-full bg-black/40 p-2.5 backdrop-blur-sm hover:bg-black/60 transition-colors"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+
+          {/* Settings panel */}
+          <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+          {/* AI Assistant */}
+          <AiAssistant
+            apiKey={settings?.openaiApiKey || ''}
+            aiProvider={settings?.aiProvider || 'openai'}
+            azureEndpoint={settings?.azureEndpoint || ''}
+            azureDeployment={settings?.azureDeployment || ''}
+            openaiModel={settings?.openaiModel || 'gpt-4o-mini'}
+            ttsVoiceName={settings?.ttsVoiceName || ''}
+            ttsRate={settings?.ttsRate ?? 0.95}
+            ttsPitch={settings?.ttsPitch ?? 1.1}
+          />
+        </>
+      )}
     </div>
   )
 }

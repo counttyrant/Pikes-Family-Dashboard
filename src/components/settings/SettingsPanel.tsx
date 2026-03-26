@@ -48,7 +48,7 @@ import {
   ArrowDown,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { ALL_PAGES, DEFAULT_PAGE_ORDER } from '../../App';
+import { ALL_PAGES, DEFAULT_PAGE_ORDER } from '../../constants/pages';
 
 /* -------------------------------------------------------------------------- */
 /*  Helpers                                                                   */
@@ -1235,7 +1235,7 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
           {/* ---- About ---- */}
           <Section title="About" icon={<Info size={16} className="text-slate-400" />}>
             <p className="text-sm text-white/60">Pikes Family Dashboard</p>
-            <p className="text-sm font-mono text-white/40">v2.0.0</p>
+            <p className="text-sm font-mono text-white/40">v2.1.0</p>
             <p className="text-xs text-white/30 mt-1">
               Built with React, Tailwind CSS, and ❤️
             </p>
