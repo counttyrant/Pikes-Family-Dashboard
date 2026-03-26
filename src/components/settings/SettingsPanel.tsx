@@ -120,6 +120,37 @@ function InputField({
   );
 }
 
+function VoiceSelector({ voiceName, onVoiceChange }: { voiceName: string; onVoiceChange: (name: string) => void }) {
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+
+  useEffect(() => {
+    const load = () => {
+      const v = window.speechSynthesis?.getVoices() ?? [];
+      if (v.length) setVoices(v);
+    };
+    load();
+    window.speechSynthesis?.addEventListener('voiceschanged', load);
+    return () => window.speechSynthesis?.removeEventListener('voiceschanged', load);
+  }, []);
+
+  const englishVoices = voices.filter(v => v.lang.startsWith('en'));
+
+  return (
+    <select
+      value={voiceName}
+      onChange={(e) => onVoiceChange(e.target.value)}
+      className="w-full rounded-lg bg-white/10 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+    >
+      <option value="">Auto (friendly female)</option>
+      {englishVoices.map((v) => (
+        <option key={v.name} value={v.name}>
+          {v.name} ({v.lang})
+        </option>
+      ))}
+    </select>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /*  SettingsPanel                                                             */
 /* -------------------------------------------------------------------------- */
@@ -1051,6 +1082,58 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                 </p>
               </>
             )}
+
+            {/* Voice settings */}
+            <div className="border-t border-white/10 pt-3 mt-3 space-y-3">
+              <span className="text-xs text-white/60 font-medium">Voice Settings</span>
+              <VoiceSelector
+                voiceName={settings.ttsVoiceName || ''}
+                onVoiceChange={(name) => save({ ttsVoiceName: name })}
+              />
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="text-xs text-white/50">Speed ({settings.ttsRate?.toFixed(2) ?? '0.95'})</label>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="2"
+                    step="0.05"
+                    value={settings.ttsRate ?? 0.95}
+                    onChange={(e) => save({ ttsRate: parseFloat(e.target.value) })}
+                    className="w-full accent-teal-500"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-white/50">Pitch ({settings.ttsPitch?.toFixed(2) ?? '1.10'})</label>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="2"
+                    step="0.05"
+                    value={settings.ttsPitch ?? 1.1}
+                    onChange={(e) => save({ ttsPitch: parseFloat(e.target.value) })}
+                    className="w-full accent-teal-500"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  const synth = window.speechSynthesis;
+                  if (!synth) return;
+                  synth.cancel();
+                  const utt = new SpeechSynthesisUtterance('Hi! I\'m your family assistant. How can I help today?');
+                  utt.rate = settings.ttsRate ?? 0.95;
+                  utt.pitch = settings.ttsPitch ?? 1.1;
+                  const voices = synth.getVoices();
+                  const v = settings.ttsVoiceName ? voices.find(x => x.name === settings.ttsVoiceName) : voices.find(x => x.lang.startsWith('en'));
+                  if (v) utt.voice = v;
+                  synth.speak(utt);
+                }}
+                className="text-xs bg-teal-500/20 hover:bg-teal-500/30 text-teal-400 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                🔊 Test Voice
+              </button>
+            </div>
           </Section>
 
           {/* ---- About ---- */}

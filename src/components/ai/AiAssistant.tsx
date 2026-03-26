@@ -12,6 +12,9 @@ interface AiAssistantProps {
   azureEndpoint?: string;
   azureDeployment?: string;
   openaiModel?: string;
+  ttsVoiceName?: string;
+  ttsRate?: number;
+  ttsPitch?: number;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -31,7 +34,7 @@ function getSpeechRecognition(): (new () => SpeechRecognition) | null {
 /*  Component                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '', azureDeployment = '', openaiModel = 'gpt-4o-mini' }: AiAssistantProps) {
+export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '', azureDeployment = '', openaiModel = 'gpt-4o-mini', ttsVoiceName = '', ttsRate = 0.95, ttsPitch = 1.1 }: AiAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -65,16 +68,19 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
     if (!clean) return;
     const utterance = new SpeechSynthesisUtterance(clean);
     utterance.lang = 'en-US';
-    utterance.rate = 0.95;
-    utterance.pitch = 1.1;
+    utterance.rate = ttsRate;
+    utterance.pitch = ttsPitch;
 
-    // Pick a friendlier voice — prefer female English voices
     const voices = window.speechSynthesis.getVoices();
-    const friendly =
-      voices.find(v => v.name.includes('Zira')) ??                // Edge/Windows Zira
-      voices.find(v => v.name.includes('Samantha')) ??            // macOS Samantha
-      voices.find(v => v.name.includes('Google US English')) ??   // Chrome
-      voices.find(v => v.name.includes('Jenny')) ??               // Edge Neural Jenny
+    // Use user-selected voice if set, otherwise auto-select a friendly one
+    const selected = ttsVoiceName
+      ? voices.find(v => v.name === ttsVoiceName)
+      : null;
+    const friendly = selected ??
+      voices.find(v => v.name.includes('Zira')) ??
+      voices.find(v => v.name.includes('Samantha')) ??
+      voices.find(v => v.name.includes('Google US English')) ??
+      voices.find(v => v.name.includes('Jenny')) ??
       voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) ??
       voices.find(v => v.lang.startsWith('en'));
     if (friendly) utterance.voice = friendly;
