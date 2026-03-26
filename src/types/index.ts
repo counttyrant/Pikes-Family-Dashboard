@@ -149,6 +149,16 @@ export interface WidgetLayout {
   h: number;
 }
 
+/* ── Google Calendars ─────────────────────────────────────────────────── */
+
+export interface GoogleCalendarInfo {
+  id: string;
+  summary: string;
+  backgroundColor: string;
+  primary?: boolean;
+  accessRole: string;
+}
+
 /* ── Settings ─────────────────────────────────────────────────────────── */
 
 export interface DashboardSettings {
@@ -168,6 +178,8 @@ export interface DashboardSettings {
   immichAlbumId: string;
   googlePhotosAlbumId: string;
   allowedEmails: string[];
+  slideInterval: number;
+  selectedCalendarIds: string[];
 }
 
 /* ── Misc ─────────────────────────────────────────────────────────────── */

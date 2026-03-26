@@ -1,6 +1,7 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { GridLayout, verticalCompactor } from 'react-grid-layout'
+import 'react-grid-layout/css/styles.css'
 import { Clock } from '../components/widgets/Clock'
 import { Weather } from '../components/widgets/Weather'
 import { Calendar } from '../components/widgets/Calendar'
@@ -26,9 +27,28 @@ interface DashboardProps {
 
 export default function Dashboard({ settings, accessToken }: DashboardProps) {
   const [editMode, setEditMode] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [containerWidth, setContainerWidth] = useState(1200)
+
+  // Measure actual container width for the grid
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width)
+      }
+    })
+    observer.observe(el)
+    setContainerWidth(el.clientWidth)
+    return () => observer.disconnect()
+  }, [])
 
   const countdownEvents = useLiveQuery(() => db.countdownEvents.orderBy('date').toArray()) ?? []
-  const { events: calendarEvents } = useGoogleCalendar(settings?.googleToken ?? null)
+
+  // Use the auth accessToken directly, not settings.googleToken
+  const calendarIds = settings?.selectedCalendarIds?.length ? settings.selectedCalendarIds : ['primary']
+  const { events: calendarEvents } = useGoogleCalendar(accessToken ?? null, calendarIds)
 
   const layouts = settings?.layouts?.length ? settings.layouts : DEFAULT_LAYOUTS
 
@@ -46,7 +66,7 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
   )
 
   return (
-    <div className="h-full w-full p-4 pt-16 relative">
+    <div ref={containerRef} className="h-full w-full p-4 pt-16 relative">
       <button
         onClick={() => setEditMode(!editMode)}
         className={`fixed top-4 left-4 z-40 rounded-full p-3 backdrop-blur-sm transition-colors ${
@@ -57,12 +77,18 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
         {editMode ? <Unlock size={20} /> : <Lock size={20} />}
       </button>
 
+      {editMode && (
+        <div className="fixed top-4 left-16 z-40 bg-blue-500/60 text-white text-xs px-3 py-2 rounded-full backdrop-blur-sm">
+          Drag headers to move • Drag corners to resize
+        </div>
+      )}
+
       <GridLayout
-        width={1200}
+        width={containerWidth}
         layout={layouts.map((l) => ({ ...l, minW: 2, minH: 2 }))}
         gridConfig={{ cols: 12, rowHeight: 80, margin: [16, 16] }}
         dragConfig={{ enabled: editMode, handle: '.drag-handle' }}
-        resizeConfig={{ enabled: editMode }}
+        resizeConfig={{ enabled: editMode, handles: ['se', 'sw', 'ne', 'nw'] }}
         compactor={verticalCompactor}
         autoSize={true}
         onLayoutChange={(layout) => handleLayoutChange(layout)}

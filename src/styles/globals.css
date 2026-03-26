@@ -43,21 +43,64 @@ button, [role="button"], input, select { min-height: 44px; min-width: 44px; }
   position: absolute;
   width: 20px;
   height: 20px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.react-grid-item:hover > .react-resizable-handle {
+  opacity: 1;
 }
 .react-grid-item > .react-resizable-handle::after {
   content: "";
   position: absolute;
-  right: 3px;
-  bottom: 3px;
   width: 8px;
   height: 8px;
-  border-right: 2px solid rgba(255, 255, 255, 0.3);
-  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-se {
   bottom: 0;
   right: 0;
   cursor: se-resize;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-se::after {
+  right: 3px;
+  bottom: 3px;
+  border-right: 2px solid rgba(96, 165, 250, 0.6);
+  border-bottom: 2px solid rgba(96, 165, 250, 0.6);
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-sw {
+  bottom: 0;
+  left: 0;
+  cursor: sw-resize;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-sw::after {
+  left: 3px;
+  bottom: 3px;
+  border-left: 2px solid rgba(96, 165, 250, 0.6);
+  border-bottom: 2px solid rgba(96, 165, 250, 0.6);
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-ne {
+  top: 0;
+  right: 0;
+  cursor: ne-resize;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-ne::after {
+  right: 3px;
+  top: 3px;
+  border-right: 2px solid rgba(96, 165, 250, 0.6);
+  border-top: 2px solid rgba(96, 165, 250, 0.6);
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-nw {
+  top: 0;
+  left: 0;
+  cursor: nw-resize;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-nw::after {
+  left: 3px;
+  top: 3px;
+  border-left: 2px solid rgba(96, 165, 250, 0.6);
+  border-top: 2px solid rgba(96, 165, 250, 0.6);
+}
+.react-resizable-hide > .react-resizable-handle {
+  display: none;
 }
 .react-grid-item.react-grid-placeholder {
   background: rgba(59, 130, 246, 0.3);

@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '../types';
+import type { CalendarEvent, GoogleCalendarInfo } from '../types';
 
 const SCOPES = [
   'openid',
@@ -124,10 +124,42 @@ export async function fetchUserProfile(
   };
 }
 
+export async function fetchCalendarList(
+  token: string,
+): Promise<GoogleCalendarInfo[]> {
+  const response = await fetch(
+    'https://www.googleapis.com/calendar/v3/users/me/calendarList',
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Calendar list fetch failed: ${response.status}`);
+  }
+
+  const data = (await response.json()) as {
+    items?: Array<{
+      id: string;
+      summary: string;
+      backgroundColor: string;
+      primary?: boolean;
+      accessRole: string;
+    }>;
+  };
+
+  return (data.items ?? []).map((cal) => ({
+    id: cal.id,
+    summary: cal.summary ?? '(Unnamed)',
+    backgroundColor: cal.backgroundColor ?? '#3b82f6',
+    primary: cal.primary ?? false,
+    accessRole: cal.accessRole,
+  }));
+}
+
 export async function fetchCalendarEvents(
   token: string,
   timeMin: Date,
   timeMax: Date,
+  calendarId = 'primary',
 ): Promise<CalendarEvent[]> {
   const params = new URLSearchParams({
     timeMin: timeMin.toISOString(),
@@ -138,7 +170,7 @@ export async function fetchCalendarEvents(
   });
 
   const response = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params}`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
 
@@ -163,7 +195,7 @@ export async function fetchCalendarEvents(
       title: event.summary ?? '(No title)',
       start: new Date(event.start.dateTime ?? event.start.date ?? ''),
       end: new Date(event.end.dateTime ?? event.end.date ?? ''),
-      calendarId: 'primary',
+      calendarId,
       color: event.colorId ?? '#3b82f6',
       allDay,
     };

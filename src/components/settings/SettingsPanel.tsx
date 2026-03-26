@@ -11,11 +11,12 @@ import {
   addCountdownEvent,
   deleteCountdownEvent,
 } from '../../services/storage';
-import type { DashboardSettings, PhotoSource, ThemeName } from '../../types';
+import type { DashboardSettings, PhotoSource, ThemeName, GoogleCalendarInfo } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fetchImmichAlbums } from '../../services/immich';
 import { fetchGooglePhotosAlbums } from '../../services/googlePhotos';
+import { fetchCalendarList } from '../../services/googleCalendar';
 import {
   Settings,
   X,
@@ -147,6 +148,7 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
   const [newAllowedEmail, setNewAllowedEmail] = useState('');
   const [immichAlbums, setImmichAlbums] = useState<{ id: string; albumName: string; assetCount: number }[]>([]);
   const [googleAlbums, setGoogleAlbums] = useState<{ id: string; title: string; mediaItemsCount: string }[]>([]);
+  const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarInfo[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
@@ -224,6 +226,27 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
     if (!user?.accessToken) return;
     const albums = await fetchGooglePhotosAlbums(user.accessToken);
     setGoogleAlbums(albums);
+  };
+
+  /* -- Google Calendars -------------------------------------------------- */
+
+  const handleFetchGoogleCalendars = async () => {
+    if (!user?.accessToken) return;
+    try {
+      const calendars = await fetchCalendarList(user.accessToken);
+      setGoogleCalendars(calendars);
+    } catch (err) {
+      console.warn('Failed to fetch calendar list:', err);
+    }
+  };
+
+  const handleToggleCalendar = (calId: string) => {
+    if (!settings) return;
+    const current = settings.selectedCalendarIds ?? ['primary'];
+    const updated = current.includes(calId)
+      ? current.filter((id) => id !== calId)
+      : [...current, calId];
+    save({ selectedCalendarIds: updated.length > 0 ? updated : ['primary'] });
   };
 
   /* -- Allowed Emails ----------------------------------------------------- */
@@ -322,8 +345,45 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
           {/* ---- Google Calendar ---- */}
           <Section title="Google Calendar" icon={<Calendar size={16} className="text-blue-400" />}>
             {user ? (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-green-400 flex-1">✓ Connected as {user.email}</span>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-green-400 flex-1">✓ Connected as {user.email}</span>
+                </div>
+                <button
+                  onClick={handleFetchGoogleCalendars}
+                  className="px-4 py-2 text-sm bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-400 transition-colors"
+                >
+                  Load Calendars
+                </button>
+                {googleCalendars.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-xs text-white/60">Select calendars to display:</span>
+                    {googleCalendars.map((cal) => {
+                      const selected = (settings.selectedCalendarIds ?? ['primary']).includes(cal.id);
+                      return (
+                        <button
+                          key={cal.id}
+                          onClick={() => handleToggleCalendar(cal.id)}
+                          className={`w-full flex items-center gap-2 text-left px-3 py-2 text-sm rounded-lg transition-all ${
+                            selected
+                              ? 'bg-blue-500/30 text-blue-300'
+                              : 'bg-white/5 text-white/60 hover:bg-white/10'
+                          }`}
+                        >
+                          <span
+                            className="w-3 h-3 rounded-full shrink-0"
+                            style={{ backgroundColor: cal.backgroundColor }}
+                          />
+                          <span className="flex-1 truncate">{cal.summary}</span>
+                          {cal.primary && (
+                            <span className="text-[0.6rem] bg-white/10 px-1.5 py-0.5 rounded text-white/40">Primary</span>
+                          )}
+                          {selected && <span className="text-blue-300">✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ) : (
               <p className="text-sm text-white/50">Sign in to connect Google Calendar</p>
@@ -379,6 +439,29 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                     {src === 'unsplash' && '🌄 Unsplash'}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Slide interval */}
+            <div className="space-y-2">
+              <span className="text-xs text-white/60">Slide Duration: {settings.slideInterval || 15}s</span>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="5"
+                  max="120"
+                  step="5"
+                  value={settings.slideInterval || 15}
+                  onChange={(e) => save({ slideInterval: parseInt(e.target.value) })}
+                  className="flex-1 h-1.5 bg-white/10 rounded-full appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-400 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:cursor-pointer"
+                />
+                <span className="text-xs text-white/40 w-10 text-right">{settings.slideInterval || 15}s</span>
+              </div>
+              <div className="flex justify-between text-[0.6rem] text-white/30">
+                <span>5s</span>
+                <span>30s</span>
+                <span>60s</span>
+                <span>120s</span>
               </div>
             </div>
 

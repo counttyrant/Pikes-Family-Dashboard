@@ -6,14 +6,15 @@ import { fetchImmichAlbumPhotos } from '../../services/immich';
 import { fetchGooglePhotosAlbumImages } from '../../services/googlePhotos';
 import { fetchUnsplashPhotos, DEFAULT_PHOTO_URLS } from '../../services/unsplash';
 import type { PhotoSource } from '../../types';
+import { SkipForward } from 'lucide-react';
 
-const SLIDE_INTERVAL = 15_000;
 const TRANSITION_MS = 1500;
 
 export function PhotoSlideshow() {
   const localPhotos = useLiveQuery(() => db.photos.orderBy('addedAt').toArray());
   const [remoteUrls, setRemoteUrls] = useState<string[]>([]);
   const [photoSource, setPhotoSource] = useState<PhotoSource>('local');
+  const [slideInterval, setSlideInterval] = useState(15);
 
   const [currentIdx, setCurrentIdx] = useState(0);
   const [currentUrl, setCurrentUrl] = useState<string | null>(null);
@@ -30,6 +31,7 @@ export function PhotoSlideshow() {
       const settings = await getSettings();
       if (cancelled) return;
       setPhotoSource(settings.photoSource);
+      setSlideInterval(settings.slideInterval || 15);
 
       if (settings.photoSource === 'immich' && settings.immichUrl && settings.immichApiKey && settings.immichAlbumId) {
         const urls = await fetchImmichAlbumPhotos(settings.immichUrl, settings.immichApiKey, settings.immichAlbumId);
@@ -42,13 +44,12 @@ export function PhotoSlideshow() {
         const urls = await fetchUnsplashPhotos(key);
         if (!cancelled) setRemoteUrls(urls);
       } else if (settings.photoSource === 'local') {
-        // Use default picsum photos as fallback when no local photos exist
         if (!cancelled) setRemoteUrls(DEFAULT_PHOTO_URLS);
       }
     }
 
     loadPhotos();
-    const interval = setInterval(loadPhotos, 600_000); // Refresh every 10min
+    const interval = setInterval(loadPhotos, 600_000);
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
@@ -92,29 +93,29 @@ export function PhotoSlideshow() {
     setCurrentUrl(urls[safeIdx]);
   }, [allUrls, currentIdx]);
 
+  // Advance to next photo (used by timer and skip button)
+  const advancePhoto = useCallback(() => {
+    const urls = allUrls();
+    if (urls.length <= 1) return;
+    const nextIdx = (currentIdx + 1) % urls.length;
+    setNextUrl(urls[nextIdx]);
+    setTransitioning(true);
+    setTimeout(() => {
+      setCurrentIdx(nextIdx);
+      setTransitioning(false);
+      setNextUrl(null);
+    }, TRANSITION_MS);
+  }, [allUrls, currentIdx]);
+
   // Slideshow timer
   useEffect(() => {
     const urls = allUrls();
     if (urls.length <= 1) return;
 
-    const timer = setInterval(() => {
-      setCurrentIdx((prev) => {
-        const nextIdx = (prev + 1) % urls.length;
-        setNextUrl(urls[nextIdx]);
-        setTransitioning(true);
-
-        setTimeout(() => {
-          setCurrentIdx(nextIdx);
-          setTransitioning(false);
-          setNextUrl(null);
-        }, TRANSITION_MS);
-
-        return prev;
-      });
-    }, SLIDE_INTERVAL);
-
+    const intervalMs = (slideInterval || 15) * 1000;
+    const timer = setInterval(advancePhoto, intervalMs);
     return () => clearInterval(timer);
-  }, [allUrls]);
+  }, [allUrls, slideInterval, advancePhoto]);
 
   return (
     <div className="fixed inset-0 -z-10 overflow-hidden">
@@ -148,6 +149,15 @@ export function PhotoSlideshow() {
       )}
 
       <div className="absolute inset-0 bg-black/40" />
+
+      {/* Skip photo button */}
+      <button
+        onClick={advancePhoto}
+        className="absolute bottom-4 right-4 z-10 p-2 rounded-full bg-black/30 backdrop-blur-sm text-white/50 hover:text-white hover:bg-black/50 transition-all"
+        title="Next photo"
+      >
+        <SkipForward size={16} />
+      </button>
     </div>
   );
 }

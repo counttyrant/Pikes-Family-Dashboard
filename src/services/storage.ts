@@ -35,6 +35,8 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   immichAlbumId: '',
   googlePhotosAlbumId: '',
   allowedEmails: [],
+  slideInterval: 15,
+  selectedCalendarIds: ['primary'],
 };
 
 export async function getSettings(): Promise<DashboardSettings> {
