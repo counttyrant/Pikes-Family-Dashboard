@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Mic, MicOff, Loader2 } from 'lucide-react';
+import { MessageCircle, X, Send, Mic, MicOff, Loader2, Volume2, VolumeX } from 'lucide-react';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -35,6 +35,7 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
+  const [speakEnabled, setSpeakEnabled] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -48,6 +49,22 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
   useEffect(() => {
     if (isOpen) inputRef.current?.focus();
   }, [isOpen]);
+
+  /* -- Text-to-speech ---------------------------------------------------- */
+
+  const speak = (text: string) => {
+    if (!speakEnabled || !window.speechSynthesis) return;
+    // Stop any ongoing speech
+    window.speechSynthesis.cancel();
+    // Strip emoji/symbols for cleaner speech
+    const clean = text.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}⚠️]/gu, '').trim();
+    if (!clean) return;
+    const utterance = new SpeechSynthesisUtterance(clean);
+    utterance.lang = 'en-US';
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    window.speechSynthesis.speak(utterance);
+  };
 
   /* -- Send message to AI ------------------------------------------------ */
 
@@ -113,6 +130,7 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
         data.choices?.[0]?.message?.content ??
         'Sorry, I could not generate a response.';
       setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+      speak(reply);
     } catch (err) {
       const errorMsg =
         err instanceof Error ? err.message : 'Something went wrong';
@@ -181,12 +199,26 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
             </div>
             <span className="font-semibold text-sm">Family Assistant</span>
           </div>
-          <button
-            onClick={() => setIsOpen(false)}
-            className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
-          >
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => {
+                setSpeakEnabled(!speakEnabled);
+                if (speakEnabled) window.speechSynthesis?.cancel();
+              }}
+              className={`p-1.5 rounded-lg transition-colors ${
+                speakEnabled ? 'text-blue-400 hover:bg-white/10' : 'text-white/30 hover:bg-white/10'
+              }`}
+              title={speakEnabled ? 'Mute voice' : 'Enable voice'}
+            >
+              {speakEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+            </button>
+            <button
+              onClick={() => { setIsOpen(false); window.speechSynthesis?.cancel(); }}
+              className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
@@ -201,6 +233,9 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
               <p>👋 Hi! I&apos;m your family assistant.</p>
               <p className="mt-1">
                 Ask me about schedules, meal ideas, chores, or anything!
+              </p>
+              <p className="mt-2 text-xs">
+                🎤 Tap the mic to talk &nbsp;·&nbsp; 🔊 I&apos;ll read my answers aloud
               </p>
             </div>
           )}
