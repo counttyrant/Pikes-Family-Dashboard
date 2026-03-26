@@ -67,9 +67,8 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
       };
 
       if (aiProvider === 'azure-openai' && azureEndpoint && azureDeployment) {
-        // Azure OpenAI: endpoint/openai/deployments/{deployment}/chat/completions?api-version=...
         const base = azureEndpoint.replace(/\/$/, '');
-        url = `${base}/openai/deployments/${azureDeployment}/chat/completions?api-version=2024-08-01-preview`;
+        url = `${base}/openai/deployments/${encodeURIComponent(azureDeployment)}/chat/completions?api-version=2024-02-01`;
         headers['api-key'] = apiKey;
       } else {
         url = 'https://api.openai.com/v1/chat/completions';
@@ -95,7 +94,17 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
         body: JSON.stringify(body),
       });
 
-      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      if (!res.ok) {
+        let detail = `${res.status}`;
+        try {
+          const errBody = await res.json();
+          detail = errBody?.error?.message || errBody?.message || detail;
+        } catch { /* ignore */ }
+        if (aiProvider === 'azure-openai' && res.status === 404) {
+          throw new Error(`404 — deployment "${azureDeployment}" not found. Check the deployment name in Azure AI Foundry matches exactly.`);
+        }
+        throw new Error(`API error: ${detail}`);
+      }
 
       const data = (await res.json()) as {
         choices: Array<{ message: { content: string } }>;
