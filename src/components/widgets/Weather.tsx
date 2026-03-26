@@ -16,7 +16,7 @@ export function Weather({ apiKey, location }: WeatherProps) {
   const [error, setError] = useState(false);
 
   const load = useCallback(async () => {
-    if (!apiKey || !location) return;
+    if (!apiKey) return;
     setLoading(true);
     setError(false);
     const result = await fetchWeather(apiKey, location);
@@ -56,6 +56,11 @@ export function Weather({ apiKey, location }: WeatherProps) {
       <div className="flex flex-col items-center justify-center gap-3 py-8 text-white/50">
         <CloudOff className="w-12 h-12" />
         <p className="text-lg">Unable to load weather</p>
+        <p className="text-xs text-white/30 text-center max-w-[200px]">
+          {!location
+            ? 'Set a location in settings (e.g. "Denver, CO")'
+            : 'Check your API key and location in settings'}
+        </p>
       </div>
     );
   }

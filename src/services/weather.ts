@@ -25,18 +25,31 @@ export async function fetchWeather(
   location: string,
 ): Promise<WeatherData | null> {
   try {
-    const encoded = encodeURIComponent(location);
+    // Build query — use city name if provided, otherwise try lat/lon
+    let query = '';
+    if (location.trim()) {
+      query = `q=${encodeURIComponent(location.trim())}`;
+    } else {
+      // Try browser geolocation
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 }),
+      );
+      query = `lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`;
+    }
 
     const [currentRes, forecastRes] = await Promise.all([
       fetch(
-        `https://api.openweathermap.org/data/2.5/weather?q=${encoded}&units=imperial&appid=${apiKey}`,
+        `https://api.openweathermap.org/data/2.5/weather?${query}&units=imperial&appid=${apiKey}`,
       ),
       fetch(
-        `https://api.openweathermap.org/data/2.5/forecast?q=${encoded}&units=imperial&appid=${apiKey}`,
+        `https://api.openweathermap.org/data/2.5/forecast?${query}&units=imperial&appid=${apiKey}`,
       ),
     ]);
 
-    if (!currentRes.ok || !forecastRes.ok) return null;
+    if (!currentRes.ok || !forecastRes.ok) {
+      console.warn('Weather API error:', currentRes.status, forecastRes.status);
+      return null;
+    }
 
     const currentData = await currentRes.json();
     const forecastData = await forecastRes.json();
