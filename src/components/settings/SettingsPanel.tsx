@@ -245,6 +245,12 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
     try {
       const calendars = await fetchCalendarList(user.accessToken);
       setGoogleCalendars(calendars);
+      // Save calendar colors for color-coding events
+      const colorMap: Record<string, string> = { ...(settings?.calendarColors ?? {}) };
+      for (const cal of calendars) {
+        colorMap[cal.id] = cal.backgroundColor;
+      }
+      save({ calendarColors: colorMap });
       if (calendars.length === 0) {
         setCalendarError('No calendars found');
       }

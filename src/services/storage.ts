@@ -41,6 +41,8 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   allowedEmails: [],
   slideInterval: 15,
   selectedCalendarIds: ['primary'],
+  activeWidgets: ['clock', 'weather', 'countdown', 'calendar'],
+  calendarColors: {},
 };
 
 export async function getSettings(): Promise<DashboardSettings> {

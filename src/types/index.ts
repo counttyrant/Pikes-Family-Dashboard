@@ -186,6 +186,8 @@ export interface DashboardSettings {
   allowedEmails: string[];
   slideInterval: number;
   selectedCalendarIds: string[];
+  activeWidgets: string[];
+  calendarColors: Record<string, string>;
 }
 
 /* ── Misc ─────────────────────────────────────────────────────────────── */

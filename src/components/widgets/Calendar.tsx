@@ -19,9 +19,10 @@ import { db } from '../../db';
 interface CalendarProps {
   events: CalendarEvent[];
   accessToken?: string | null;
+  calendarColors?: Record<string, string>;
 }
 
-export function Calendar({ events, accessToken }: CalendarProps) {
+export function Calendar({ events, accessToken, calendarColors = {} }: CalendarProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
 
@@ -155,13 +156,13 @@ export function Calendar({ events, accessToken }: CalendarProps) {
                     className="flex items-start gap-1.5 rounded-md px-1.5 py-1 text-left
                                hover:bg-white/10 active:bg-white/15 transition-colors"
                   >
-                    {/* Icon or color dot */}
+                    {/* Icon or color dot — color-coded by calendar */}
                     {evt.icon && evt.icon in EVENT_ICON_MAP ? (
                       <EventIconBadge icon={evt.icon} size="sm" />
                     ) : (
                       <span
                         className="mt-1 w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: evt.color }}
+                        style={{ backgroundColor: calendarColors[evt.calendarId] || evt.color }}
                       />
                     )}
 
