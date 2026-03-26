@@ -1,15 +1,52 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { fetchImmichAlbumPhotos } from '../../services/immich';
 import { fetchGooglePhotosAlbumImages } from '../../services/googlePhotos';
 import { fetchUnsplashPhotos, DEFAULT_PHOTO_URLS } from '../../services/unsplash';
 import type { PhotoSource, DashboardSettings } from '../../types';
-import { SkipForward } from 'lucide-react';
 
 const TRANSITION_MS = 1500;
 
-export function PhotoSlideshow() {
+function preloadImage(url: string): Promise<void> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve();
+    img.onerror = () => resolve();
+    img.src = url;
+  });
+}
+
+function extractImmichAssetId(url: string): string | null {
+  try {
+    const qIdx = url.indexOf('?');
+    if (qIdx === -1) return null;
+    const params = new URLSearchParams(url.slice(qIdx + 1));
+    const path = params.get('path') || '';
+    const match = path.match(/\/api\/assets\/([^/]+)\//);
+    return match?.[1] || null;
+  } catch { return null; }
+}
+
+export interface PhotoInfo {
+  url: string;
+  source: PhotoSource | 'default';
+  localId?: string;
+  immichAssetId?: string;
+}
+
+export interface PhotoSlideshowHandle {
+  advance: () => void;
+  previous: () => void;
+  getCurrentInfo: () => PhotoInfo | null;
+  removeCurrentFromList: () => void;
+}
+
+interface Props {
+  pictureMode?: boolean;
+}
+
+export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function PhotoSlideshow({ pictureMode = false }, ref) {
   const localPhotos = useLiveQuery(() => db.photos.orderBy('addedAt').toArray());
   const dbSettings = useLiveQuery(() => db.settings.get('main'));
 
@@ -20,11 +57,12 @@ export function PhotoSlideshow() {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [transitioning, setTransitioning] = useState(false);
+  const [initialLoaded, setInitialLoaded] = useState(false);
   const transitioningRef = useRef(false);
 
   const urlCache = useRef<Map<string, string>>(new Map());
 
-  // Reload photos whenever settings change (reactive via useLiveQuery)
+  // Reload photos whenever settings change
   useEffect(() => {
     if (!dbSettings) return;
     let cancelled = false;
@@ -45,13 +83,11 @@ export function PhotoSlideshow() {
         const urls = await fetchUnsplashPhotos(key);
         if (!cancelled) setRemoteUrls(urls);
       } else {
-        // local or fallback — use curated defaults when no local photos uploaded
         if (!cancelled) setRemoteUrls(DEFAULT_PHOTO_URLS);
       }
     }
 
     loadRemote();
-    // Refresh remote URLs periodically
     const timer = setInterval(loadRemote, 600_000);
     return () => { cancelled = true; clearInterval(timer); };
   }, [dbSettings]);
@@ -91,26 +127,83 @@ export function PhotoSlideshow() {
   // Reset index when URL list changes
   useEffect(() => {
     setCurrentIdx(0);
+    setInitialLoaded(false);
   }, [remoteUrls.length, photoSource]);
 
-  // Advance to next photo
-  const advancePhoto = useCallback(() => {
+  // Preload current + upcoming images to prevent flashing
+  useEffect(() => {
+    if (urls.length === 0) return;
+    let cancelled = false;
+    const toPreload = [];
+    for (let i = 0; i < Math.min(4, urls.length); i++) {
+      toPreload.push(urls[(currentIdx + i) % urls.length]);
+    }
+    Promise.all(toPreload.map(preloadImage)).then(() => {
+      if (!cancelled) setInitialLoaded(true);
+    });
+    return () => { cancelled = true; };
+  }, [currentIdx, urls]);
+
+  // Transition to a specific index
+  const transitionTo = useCallback(async (targetIdx: number) => {
     if (transitioningRef.current) return;
     const currentUrls = getUrls();
     if (currentUrls.length <= 1) return;
 
-    const nextIdx = (currentIdx + 1) % currentUrls.length;
-    setNextUrl(currentUrls[nextIdx]);
-    setTransitioning(true);
     transitioningRef.current = true;
+    await preloadImage(currentUrls[targetIdx]);
+
+    setNextUrl(currentUrls[targetIdx]);
+    setTransitioning(true);
 
     setTimeout(() => {
-      setCurrentIdx(nextIdx);
+      setCurrentIdx(targetIdx);
       setTransitioning(false);
       setNextUrl(null);
       transitioningRef.current = false;
     }, TRANSITION_MS);
-  }, [getUrls, currentIdx]);
+  }, [getUrls]);
+
+  const advancePhoto = useCallback(() => {
+    const currentUrls = getUrls();
+    if (currentUrls.length <= 1) return;
+    transitionTo((currentIdx + 1) % currentUrls.length);
+  }, [getUrls, currentIdx, transitionTo]);
+
+  const previousPhoto = useCallback(() => {
+    const currentUrls = getUrls();
+    if (currentUrls.length <= 1) return;
+    transitionTo((currentIdx - 1 + currentUrls.length) % currentUrls.length);
+  }, [getUrls, currentIdx, transitionTo]);
+
+  const removeCurrentFromList = useCallback(() => {
+    setRemoteUrls(prev => {
+      const newUrls = [...prev];
+      const idx = currentIdx % newUrls.length;
+      newUrls.splice(idx, 1);
+      return newUrls;
+    });
+    setCurrentIdx(prev => prev >= urls.length - 1 ? 0 : prev);
+  }, [currentIdx, urls.length]);
+
+  const getCurrentInfo = useCallback((): PhotoInfo | null => {
+    if (urls.length === 0) return null;
+    const url = urls[safeIdx];
+    if (photoSource === 'local' && localPhotos && localPhotos.length > 0 && safeIdx < localPhotos.length) {
+      return { url, source: 'local', localId: localPhotos[safeIdx].id };
+    }
+    if (photoSource === 'immich') {
+      return { url, source: 'immich', immichAssetId: extractImmichAssetId(url) || undefined };
+    }
+    return { url, source: remoteUrls.length > 0 ? photoSource : 'default' };
+  }, [urls, safeIdx, photoSource, localPhotos, remoteUrls.length]);
+
+  useImperativeHandle(ref, () => ({
+    advance: advancePhoto,
+    previous: previousPhoto,
+    getCurrentInfo,
+    removeCurrentFromList,
+  }), [advancePhoto, previousPhoto, getCurrentInfo, removeCurrentFromList]);
 
   // Slideshow timer
   const advanceRef = useRef(advancePhoto);
@@ -123,20 +216,27 @@ export function PhotoSlideshow() {
     return () => clearInterval(timer);
   }, [urls.length, slideInterval]);
 
+  const bgSize = pictureMode ? 'contain' : 'cover';
+  const bgRepeat = pictureMode ? 'no-repeat' : undefined;
+
   return (
     <div className="fixed inset-0 -z-10 overflow-hidden">
       <div
         className="absolute inset-0"
         style={{
-          background: `linear-gradient(135deg, var(--theme-bg-from, #0f172a), var(--theme-bg-via, #172554), var(--theme-bg-to, #1e1b4b))`,
+          background: pictureMode
+            ? '#000'
+            : `linear-gradient(135deg, var(--theme-bg-from, #0f172a), var(--theme-bg-via, #172554), var(--theme-bg-to, #1e1b4b))`,
         }}
       />
 
-      {displayUrl && (
+      {displayUrl && initialLoaded && (
         <div
-          className="absolute inset-0 bg-cover bg-center transition-opacity"
+          className="absolute inset-0 bg-center transition-opacity"
           style={{
             backgroundImage: `url(${displayUrl})`,
+            backgroundSize: bgSize,
+            backgroundRepeat: bgRepeat,
             opacity: transitioning ? 0 : 1,
             transitionDuration: `${TRANSITION_MS}ms`,
           }}
@@ -145,27 +245,18 @@ export function PhotoSlideshow() {
 
       {nextUrl && (
         <div
-          className="absolute inset-0 bg-cover bg-center transition-opacity"
+          className="absolute inset-0 bg-center transition-opacity"
           style={{
             backgroundImage: `url(${nextUrl})`,
+            backgroundSize: bgSize,
+            backgroundRepeat: bgRepeat,
             opacity: transitioning ? 1 : 0,
             transitionDuration: `${TRANSITION_MS}ms`,
           }}
         />
       )}
 
-      <div className="absolute inset-0 bg-black/40" />
-
-      {/* Skip photo button */}
-      {urls.length > 1 && (
-        <button
-          onClick={() => advancePhoto()}
-          className="fixed bottom-4 left-4 sm:bottom-6 sm:left-6 z-30 p-3 rounded-full bg-black/30 backdrop-blur-sm text-white/50 hover:text-white hover:bg-black/50 transition-all active:scale-95"
-          title="Next photo"
-        >
-          <SkipForward size={18} />
-        </button>
-      )}
+      {!pictureMode && <div className="absolute inset-0 bg-black/40" />}
     </div>
   );
-}
+});

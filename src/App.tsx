@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import { Pagination, Navigation } from 'swiper/modules'
@@ -15,13 +15,15 @@ import JellyfinPage from './pages/JellyfinPage'
 import { SettingsPanel } from './components/settings/SettingsPanel'
 import { AiAssistant } from './components/ai/AiAssistant'
 import { PhotoSlideshow } from './components/widgets/PhotoSlideshow'
+import type { PhotoSlideshowHandle } from './components/widgets/PhotoSlideshow'
 import { LoginScreen } from './components/auth/LoginScreen'
 import { useAuth } from './contexts/AuthContext'
 import { db } from './db'
 import { getSettings } from './services/storage'
 import { initCloudSync } from './services/cloudSync'
+import { removeFromImmichAlbum } from './services/immich'
 import type { DashboardSettings } from './types'
-import { Maximize, Minimize, Settings, ChevronLeft, ChevronRight, ImagePlay, X, Home } from 'lucide-react'
+import { Maximize, Minimize, Settings, ChevronLeft, ChevronRight, ImagePlay, X, Home, Trash2, SkipForward } from 'lucide-react'
 import { ALL_PAGES, DEFAULT_PAGE_ORDER } from './constants/pages'
 
 // Re-export for any other consumers
@@ -37,6 +39,8 @@ function AppContent() {
   const [settings, setSettings] = useState<DashboardSettings | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
   const swiperRef = useRef<SwiperType | null>(null)
+  const slideshowRef = useRef<PhotoSlideshowHandle | null>(null)
+  const touchStartX = useRef(0)
 
   const dbSettings = useLiveQuery(() => db.settings.get('main'))
 
@@ -126,6 +130,22 @@ function AppContent() {
     return <LoginScreen />
   }
 
+  // Delete current photo (local or Immich)
+  const handleDeletePhoto = useCallback(async () => {
+    const info = slideshowRef.current?.getCurrentInfo();
+    if (!info) return;
+    if (info.source === 'local' && info.localId) {
+      await db.photos.delete(info.localId);
+    } else if (info.source === 'immich' && info.immichAssetId && settings) {
+      try {
+        await removeFromImmichAlbum(settings.immichUrl, settings.immichApiKey, settings.immichAlbumId, info.immichAssetId);
+        slideshowRef.current?.removeCurrentFromList();
+      } catch (err) {
+        console.error('Failed to remove from Immich album:', err);
+      }
+    }
+  }, [settings]);
+
   // Render a page component by its id
   const renderPage = (id: string) => {
     switch (id) {
@@ -165,21 +185,59 @@ function AppContent() {
         />
       )}
 
-      <PhotoSlideshow />
+      <PhotoSlideshow ref={slideshowRef} pictureMode={pictureMode} />
 
-      {/* Picture mode — photos only, tap anywhere to exit */}
+      {/* Picture mode — swipeable photos with clock, fit to screen */}
       {pictureMode && (
         <div
-          className="fixed inset-0 z-50 cursor-pointer"
-          onClick={() => setPictureMode(false)}
-          onTouchStart={() => setPictureMode(false)}
+          className="fixed inset-0 z-50"
+          onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
+          onTouchEnd={(e) => {
+            const dx = e.changedTouches[0].clientX - touchStartX.current;
+            if (Math.abs(dx) > 50) {
+              if (dx > 0) slideshowRef.current?.previous();
+              else slideshowRef.current?.advance();
+            }
+          }}
         >
-          <button
-            className="absolute top-4 right-4 rounded-full bg-black/40 p-3 backdrop-blur-sm hover:bg-black/60 transition-colors z-50"
-            onClick={(e) => { e.stopPropagation(); setPictureMode(false); }}
+          {/* Clock overlay */}
+          <PictureModeClock />
+
+          {/* Controls — visible on hover/tap */}
+          <div className="absolute top-4 right-4 z-50 flex gap-2 opacity-0 hover:opacity-100 transition-opacity duration-300"
+            style={{ opacity: undefined }}
+            onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.3'; }}
           >
-            <X size={20} />
-          </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); slideshowRef.current?.previous(); }}
+              className="rounded-full bg-black/40 p-3 backdrop-blur-sm hover:bg-black/60 transition-colors"
+              title="Previous photo"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); slideshowRef.current?.advance(); }}
+              className="rounded-full bg-black/40 p-3 backdrop-blur-sm hover:bg-black/60 transition-colors"
+              title="Next photo"
+            >
+              <ChevronRight size={20} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleDeletePhoto(); }}
+              className="rounded-full bg-black/40 p-3 backdrop-blur-sm hover:bg-red-500/60 transition-colors"
+              title="Remove from album"
+            >
+              <Trash2 size={20} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setPictureMode(false); }}
+              className="rounded-full bg-black/40 p-3 backdrop-blur-sm hover:bg-black/60 transition-colors"
+              title="Exit picture mode"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -232,7 +290,10 @@ function AppContent() {
           {/* Bottom navigation bar */}
           <div className="fixed bottom-4 left-4 z-40 flex items-center gap-2">
             <button
-              onClick={() => swiperRef.current?.slideTo(0)}
+              onClick={() => {
+                const sw = swiperRef.current;
+                if (sw) sw.params.loop ? sw.slideToLoop(0) : sw.slideTo(0);
+              }}
               className="rounded-full bg-black/40 p-2.5 backdrop-blur-sm hover:bg-black/60 transition-colors"
               title="Home"
             >
@@ -252,6 +313,13 @@ function AppContent() {
               className="rounded-full bg-black/40 p-2.5 backdrop-blur-sm hover:bg-black/60 transition-colors"
             >
               <ChevronRight size={18} />
+            </button>
+            <button
+              onClick={() => slideshowRef.current?.advance()}
+              className="rounded-full bg-black/40 p-2.5 backdrop-blur-sm hover:bg-black/60 transition-colors"
+              title="Next photo"
+            >
+              <SkipForward size={18} />
             </button>
           </div>
 
@@ -277,6 +345,25 @@ function AppContent() {
       )}
     </div>
   )
+}
+
+function PictureModeClock() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="absolute bottom-8 left-8 z-50 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
+      <div className="text-6xl font-light tabular-nums">
+        {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      </div>
+      <div className="text-xl text-white/80">
+        {now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
+      </div>
+    </div>
+  );
 }
 
 function App() {

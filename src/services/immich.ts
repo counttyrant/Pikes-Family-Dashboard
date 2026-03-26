@@ -25,6 +25,29 @@ export async function fetchImmichAlbums(
   }));
 }
 
+export async function removeFromImmichAlbum(
+  serverUrl: string,
+  apiKey: string,
+  albumId: string,
+  assetId: string
+): Promise<void> {
+  const url = serverUrl.replace(/\/+$/, '');
+  const params = new URLSearchParams({
+    server: url,
+    path: `/api/albums/${albumId}/assets`,
+    apiKey,
+  });
+  const response = await fetch(`${PROXY_BASE}?${params}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids: [assetId] }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to remove asset: ${response.status}`);
+  }
+}
+
 export async function fetchImmichAlbumPhotos(
   serverUrl: string,
   apiKey: string,
