@@ -43,6 +43,8 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   selectedCalendarIds: ['primary'],
   activeWidgets: ['clock', 'weather', 'countdown', 'calendar'],
   calendarColors: {},
+  widgetColors: {},
+  eventColorOverrides: {},
 };
 
 export async function getSettings(): Promise<DashboardSettings> {

@@ -60,6 +60,19 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
   const activeWidgets = settings?.activeWidgets?.length ? settings.activeWidgets : DEFAULT_ACTIVE
   const allLayouts = settings?.layouts?.length ? settings.layouts : DEFAULT_LAYOUTS
   const calendarColors: Record<string, string> = settings?.calendarColors ?? {}
+  const widgetColors: Record<string, string> = settings?.widgetColors ?? {}
+  const eventColorOverrides: Record<string, string> = settings?.eventColorOverrides ?? {}
+
+  const handleWidgetColorChange = useCallback((widgetId: string, color: string) => {
+    const updated = { ...widgetColors, [widgetId]: color }
+    if (!color) delete updated[widgetId]
+    saveSettings({ widgetColors: updated })
+  }, [widgetColors])
+
+  const handleEventColorChange = useCallback((eventId: string, color: string) => {
+    const updated = { ...eventColorOverrides, [eventId]: color }
+    saveSettings({ eventColorOverrides: updated })
+  }, [eventColorOverrides])
 
   // Only include layouts for active widgets
   const layouts = useMemo(() => {
@@ -117,7 +130,7 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
       case 'countdown':
         return <Countdown events={countdownEvents} />
       case 'calendar':
-        return <Calendar events={calendarEvents} accessToken={accessToken} calendarColors={calendarColors} />
+        return <Calendar events={calendarEvents} accessToken={accessToken} calendarColors={calendarColors} eventColorOverrides={eventColorOverrides} onEventColorChange={handleEventColorChange} />
       case 'chores':
         return <Chores />
       case 'todos':
@@ -263,7 +276,13 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
       >
         {activeWidgets.map((id) => (
           <div key={id}>
-            <WidgetContainer title={getWidgetTitle(id)} className="h-full" editMode={editMode}>
+            <WidgetContainer
+              title={getWidgetTitle(id)}
+              className="h-full"
+              editMode={editMode}
+              widgetColor={widgetColors[id]}
+              onColorChange={(color) => handleWidgetColorChange(id, color)}
+            >
               {renderWidget(id)}
             </WidgetContainer>
           </div>

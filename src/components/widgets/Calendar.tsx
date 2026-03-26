@@ -20,11 +20,14 @@ interface CalendarProps {
   events: CalendarEvent[];
   accessToken?: string | null;
   calendarColors?: Record<string, string>;
+  eventColorOverrides?: Record<string, string>;
+  onEventColorChange?: (eventId: string, color: string) => void;
 }
 
-export function Calendar({ events, accessToken, calendarColors = {} }: CalendarProps) {
+export function Calendar({ events, accessToken, calendarColors = {}, eventColorOverrides = {}, onEventColorChange }: CalendarProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
+  const [colorPickerEvent, setColorPickerEvent] = useState<string | null>(null);
 
   const localEvents = useLiveQuery(() => db.localEvents.toArray()) ?? [];
 
@@ -150,42 +153,61 @@ export function Calendar({ events, accessToken, calendarColors = {} }: CalendarP
 
               {/* Events list */}
               <div className="flex flex-col gap-1.5 overflow-y-auto min-h-0 flex-1">
-                {dayEvents.map((evt) => (
-                  <button
-                    key={evt.id}
-                    className="flex items-start gap-1.5 rounded-md px-1.5 py-1 text-left
-                               hover:bg-white/10 active:bg-white/15 transition-colors"
-                  >
-                    {/* Icon or color dot — color-coded by calendar */}
-                    {evt.icon && evt.icon in EVENT_ICON_MAP ? (
-                      <EventIconBadge icon={evt.icon} size="sm" />
-                    ) : (
-                      <span
-                        className="mt-1 w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: calendarColors[evt.calendarId] || evt.color }}
-                      />
-                    )}
+                {dayEvents.map((evt) => {
+                  const dotColor = eventColorOverrides[evt.id] || calendarColors[evt.calendarId] || evt.color;
+                  return (
+                    <div key={evt.id} className="relative">
+                      <button
+                        className="flex items-start gap-1.5 rounded-md px-1.5 py-1 text-left w-full
+                                   hover:bg-white/10 active:bg-white/15 transition-colors"
+                        onClick={() => setColorPickerEvent(colorPickerEvent === evt.id ? null : evt.id)}
+                      >
+                        {/* Icon or color dot — color-coded by calendar */}
+                        {evt.icon && evt.icon in EVENT_ICON_MAP ? (
+                          <EventIconBadge icon={evt.icon} size="sm" />
+                        ) : (
+                          <span
+                            className="mt-1 w-2.5 h-2.5 rounded-full shrink-0 cursor-pointer ring-1 ring-white/20"
+                            style={{ backgroundColor: dotColor }}
+                          />
+                        )}
 
-                    <div className="flex flex-col min-w-0 flex-1">
-                      {!evt.allDay && (
-                        <span className="text-[0.6rem] text-white/40 tabular-nums">
-                          {format(new Date(evt.start), 'h:mm a')}
-                        </span>
+                        <div className="flex flex-col min-w-0 flex-1">
+                          {!evt.allDay && (
+                            <span className="text-[0.6rem] text-white/40 tabular-nums">
+                              {format(new Date(evt.start), 'h:mm a')}
+                            </span>
+                          )}
+                          <span className="text-xs text-white/90 leading-tight truncate">
+                            {evt.title}
+                          </span>
+                        </div>
+
+                        {evt.imageUrl && (
+                          <img
+                            src={evt.imageUrl}
+                            alt=""
+                            className="w-7 h-7 rounded object-cover shrink-0 mt-0.5"
+                          />
+                        )}
+                      </button>
+
+                      {/* Inline color picker */}
+                      {colorPickerEvent === evt.id && onEventColorChange && (
+                        <div className="flex gap-1 flex-wrap px-1.5 py-1 bg-black/40 rounded-md mt-0.5">
+                          {['#3b82f6','#22c55e','#ef4444','#f97316','#a855f7','#ec4899','#14b8a6','#f59e0b','#6366f1','#8b5cf6'].map((c) => (
+                            <button
+                              key={c}
+                              onClick={() => { onEventColorChange(evt.id, c); setColorPickerEvent(null); }}
+                              className={`w-4 h-4 rounded-full transition-transform hover:scale-125 ${dotColor === c ? 'ring-1 ring-white scale-125' : ''}`}
+                              style={{ backgroundColor: c }}
+                            />
+                          ))}
+                        </div>
                       )}
-                      <span className="text-xs text-white/90 leading-tight truncate">
-                        {evt.title}
-                      </span>
                     </div>
-
-                    {evt.imageUrl && (
-                      <img
-                        src={evt.imageUrl}
-                        alt=""
-                        className="w-7 h-7 rounded object-cover shrink-0 mt-0.5"
-                      />
-                    )}
-                  </button>
-                ))}
+                  );
+                })}
 
                 {dayEvents.length === 0 && (
                   <span className="text-[0.6rem] text-white/20 text-center mt-2">

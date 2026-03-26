@@ -188,6 +188,8 @@ export interface DashboardSettings {
   selectedCalendarIds: string[];
   activeWidgets: string[];
   calendarColors: Record<string, string>;
+  widgetColors: Record<string, string>;
+  eventColorOverrides: Record<string, string>;
 }
 
 /* ── Misc ─────────────────────────────────────────────────────────────── */

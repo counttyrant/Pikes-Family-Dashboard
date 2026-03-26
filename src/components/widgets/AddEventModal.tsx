@@ -109,10 +109,10 @@ export function AddEventModal({ open, onClose, onSave, defaultDate }: AddEventMo
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
       onClick={handleBackdropClick}
     >
-      <div className="bg-slate-800 rounded-2xl max-w-md w-full mx-4 p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-slate-800 rounded-2xl w-full h-full sm:max-w-lg sm:max-h-[90vh] sm:h-auto mx-0 sm:mx-4 p-6 shadow-2xl overflow-y-auto flex flex-col">
         <h2 className="text-xl font-bold text-white mb-5">Add Event</h2>
 
         {/* Title */}

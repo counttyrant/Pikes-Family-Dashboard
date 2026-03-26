@@ -28,7 +28,13 @@ export async function fetchWeather(
     // Build query — use city name if provided, otherwise try lat/lon
     let query = '';
     if (location.trim()) {
-      query = `q=${encodeURIComponent(location.trim())}`;
+      const loc = location.trim();
+      // Detect zip code (US 5-digit or 5+4)
+      if (/^\d{5}(-\d{4})?$/.test(loc)) {
+        query = `zip=${loc},US`;
+      } else {
+        query = `q=${encodeURIComponent(loc)}`;
+      }
     } else {
       // Try browser geolocation
       const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
