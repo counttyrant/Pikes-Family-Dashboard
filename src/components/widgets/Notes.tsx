@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Pencil, Type, Trash2, Undo2 } from 'lucide-react';
+import { syncLocalStorageToCloud } from '../../services/cloudSync';
 
 const TEXT_KEY = 'pfd-notes';
 const DRAW_KEY = 'pfd-notes-drawing';
@@ -23,6 +24,7 @@ export function Notes() {
     clearTimeout(textTimerRef.current);
     textTimerRef.current = setTimeout(() => {
       localStorage.setItem(TEXT_KEY, value);
+      syncLocalStorageToCloud(TEXT_KEY).catch(() => {});
     }, 500);
   };
 
@@ -79,6 +81,7 @@ export function Notes() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     localStorage.setItem(DRAW_KEY, canvas.toDataURL());
+    syncLocalStorageToCloud(DRAW_KEY).catch(() => {});
   }, []);
 
   const pushUndo = useCallback(() => {

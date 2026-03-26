@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
+import { syncLocalStorageToCloud } from '../../services/cloudSync';
 
 interface TodoItem {
   id: string;
@@ -20,6 +21,7 @@ function loadTodos(): TodoItem[] {
 
 function persistTodos(items: TodoItem[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  syncLocalStorageToCloud(STORAGE_KEY).catch(() => {});
 }
 
 export function TodoList() {

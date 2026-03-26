@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, CheckCircle2, Circle } from 'lucide-react';
+import { syncLocalStorageToCloud } from '../../services/cloudSync';
 
 interface Chore {
   id: string;
@@ -20,6 +21,7 @@ function loadChores(): Chore[] {
 
 function persistChores(chores: Chore[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(chores));
+  syncLocalStorageToCloud(STORAGE_KEY).catch(() => {});
 }
 
 export function Chores() {

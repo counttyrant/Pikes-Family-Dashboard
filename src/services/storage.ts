@@ -1,4 +1,5 @@
 import { db } from '../db';
+import { syncToCloud, deleteFromCloud } from './cloudSync';
 import type {
   DashboardSettings,
   FamilyMember,
@@ -58,7 +59,10 @@ export async function saveSettings(
   settings: Partial<DashboardSettings>,
 ): Promise<void> {
   const current = await getSettings();
-  await db.settings.put({ ...current, ...settings, id: 'main' });
+  const merged = { ...current, ...settings, id: 'main' };
+  await db.settings.put(merged);
+  // Fire-and-forget cloud sync
+  syncToCloud('settings', merged).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -73,7 +77,9 @@ export async function addFamilyMember(
   member: Omit<FamilyMember, 'id'>,
 ): Promise<string> {
   const id = crypto.randomUUID();
-  await db.familyMembers.put({ ...member, id });
+  const doc = { ...member, id };
+  await db.familyMembers.put(doc);
+  syncToCloud('familyMembers', doc).catch(() => {});
   return id;
 }
 
@@ -86,6 +92,7 @@ export async function updateFamilyMember(
 
 export async function deleteFamilyMember(id: string): Promise<void> {
   await db.familyMembers.delete(id);
+  deleteFromCloud('familyMembers', id).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -98,7 +105,9 @@ export async function getChores(): Promise<Chore[]> {
 
 export async function addChore(chore: Omit<Chore, 'id'>): Promise<string> {
   const id = crypto.randomUUID();
-  await db.chores.put({ ...chore, id });
+  const doc = { ...chore, id };
+  await db.chores.put(doc);
+  syncToCloud('chores', doc).catch(() => {});
   return id;
 }
 
@@ -107,10 +116,13 @@ export async function updateChore(
   data: Partial<Chore>,
 ): Promise<void> {
   await db.chores.update(id, data);
+  const updated = await db.chores.get(id);
+  if (updated) syncToCloud('chores', updated).catch(() => {});
 }
 
 export async function deleteChore(id: string): Promise<void> {
   await db.chores.delete(id);
+  deleteFromCloud('chores', id).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -125,7 +137,9 @@ export async function addReward(
   reward: Omit<Reward, 'id'>,
 ): Promise<string> {
   const id = crypto.randomUUID();
-  await db.rewards.put({ ...reward, id });
+  const doc = { ...reward, id };
+  await db.rewards.put(doc);
+  syncToCloud('rewards', doc).catch(() => {});
   return id;
 }
 
@@ -134,10 +148,13 @@ export async function updateReward(
   data: Partial<Reward>,
 ): Promise<void> {
   await db.rewards.update(id, data);
+  const updated = await db.rewards.get(id);
+  if (updated) syncToCloud('rewards', updated).catch(() => {});
 }
 
 export async function deleteReward(id: string): Promise<void> {
   await db.rewards.delete(id);
+  deleteFromCloud('rewards', id).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -158,12 +175,15 @@ export async function addStickerRecord(
   record: Omit<StickerRecord, 'id'>,
 ): Promise<string> {
   const id = crypto.randomUUID();
-  await db.stickerRecords.put({ ...record, id });
+  const doc = { ...record, id };
+  await db.stickerRecords.put(doc);
+  syncToCloud('stickerRecords', doc).catch(() => {});
   return id;
 }
 
 export async function deleteStickerRecord(id: string): Promise<void> {
   await db.stickerRecords.delete(id);
+  deleteFromCloud('stickerRecords', id).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -224,12 +244,9 @@ export async function getShoppingItems(): Promise<ShoppingItem[]> {
 
 export async function addShoppingItem(text: string): Promise<string> {
   const id = crypto.randomUUID();
-  await db.shoppingItems.put({
-    id,
-    text,
-    checked: false,
-    addedAt: new Date(),
-  });
+  const doc = { id, text, checked: false, addedAt: new Date() };
+  await db.shoppingItems.put(doc);
+  syncToCloud('shoppingItems', { ...doc, addedAt: doc.addedAt.toISOString() }).catch(() => {});
   return id;
 }
 
@@ -238,10 +255,13 @@ export async function updateShoppingItem(
   data: Partial<ShoppingItem>,
 ): Promise<void> {
   await db.shoppingItems.update(id, data);
+  const updated = await db.shoppingItems.get(id);
+  if (updated) syncToCloud('shoppingItems', { ...updated, addedAt: updated.addedAt instanceof Date ? updated.addedAt.toISOString() : updated.addedAt }).catch(() => {});
 }
 
 export async function deleteShoppingItem(id: string): Promise<void> {
   await db.shoppingItems.delete(id);
+  deleteFromCloud('shoppingItems', id).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -256,7 +276,9 @@ export async function addNote(
   note: Omit<Note, 'id' | 'updatedAt'>,
 ): Promise<string> {
   const id = crypto.randomUUID();
-  await db.notes.put({ ...note, id, updatedAt: new Date() });
+  const doc = { ...note, id, updatedAt: new Date() };
+  await db.notes.put(doc);
+  syncToCloud('notes', { ...doc, updatedAt: doc.updatedAt.toISOString() }).catch(() => {});
   return id;
 }
 
@@ -265,10 +287,13 @@ export async function updateNote(
   data: Partial<Note>,
 ): Promise<void> {
   await db.notes.update(id, { ...data, updatedAt: new Date() });
+  const updated = await db.notes.get(id);
+  if (updated) syncToCloud('notes', { ...updated, updatedAt: updated.updatedAt instanceof Date ? updated.updatedAt.toISOString() : updated.updatedAt }).catch(() => {});
 }
 
 export async function deleteNote(id: string): Promise<void> {
   await db.notes.delete(id);
+  deleteFromCloud('notes', id).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -283,7 +308,9 @@ export async function addCountdownEvent(
   event: Omit<CountdownEvent, 'id'>,
 ): Promise<string> {
   const id = crypto.randomUUID();
-  await db.countdownEvents.put({ ...event, id });
+  const doc = { ...event, id };
+  await db.countdownEvents.put(doc);
+  syncToCloud('countdownEvents', doc).catch(() => {});
   return id;
 }
 
@@ -292,10 +319,13 @@ export async function updateCountdownEvent(
   data: Partial<CountdownEvent>,
 ): Promise<void> {
   await db.countdownEvents.update(id, data);
+  const updated = await db.countdownEvents.get(id);
+  if (updated) syncToCloud('countdownEvents', updated).catch(() => {});
 }
 
 export async function deleteCountdownEvent(id: string): Promise<void> {
   await db.countdownEvents.delete(id);
+  deleteFromCloud('countdownEvents', id).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -329,7 +359,9 @@ export async function addLocalEvent(
   event: Omit<LocalCalendarEvent, 'id'>,
 ): Promise<string> {
   const id = crypto.randomUUID();
-  await db.localEvents.put({ ...event, id });
+  const doc = { ...event, id };
+  await db.localEvents.put(doc);
+  syncToCloud('localEvents', doc).catch(() => {});
   return id;
 }
 
@@ -338,8 +370,11 @@ export async function updateLocalEvent(
   data: Partial<LocalCalendarEvent>,
 ): Promise<void> {
   await db.localEvents.update(id, data);
+  const updated = await db.localEvents.get(id);
+  if (updated) syncToCloud('localEvents', updated).catch(() => {});
 }
 
 export async function deleteLocalEvent(id: string): Promise<void> {
   await db.localEvents.delete(id);
+  deleteFromCloud('localEvents', id).catch(() => {});
 }
