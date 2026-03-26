@@ -165,7 +165,22 @@ export async function saveAllToCloud(): Promise<boolean> {
     const { db } = await import('../db');
     const settings = await db.settings.get('main');
     if (settings) {
-      await syncToCloud('settings', settings as unknown as Record<string, unknown>);
+      // Merge with existing cloud data so empty local fields don't overwrite cloud values
+      const existing = await pullOneFromCloud('settings', 'main');
+      const local = settings as unknown as Record<string, unknown>;
+      if (existing) {
+        const clean = stripCosmosMeta(existing);
+        // Only overwrite cloud fields where local has a non-empty value
+        const merged: Record<string, unknown> = { ...clean };
+        for (const [key, value] of Object.entries(local)) {
+          if (value !== '' && value !== null && value !== undefined) {
+            merged[key] = value;
+          }
+        }
+        await syncToCloud('settings', merged);
+      } else {
+        await syncToCloud('settings', local);
+      }
     }
     for (const key of WIDGET_KEYS) {
       await syncLocalStorageToCloud(key).catch(() => {});
