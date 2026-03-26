@@ -124,7 +124,7 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
   const renderWidget = (id: string) => {
     switch (id) {
       case 'clock':
-        return <Clock />
+        return <Clock editMode={editMode} />
       case 'weather':
         return (
           <Weather
@@ -144,6 +144,7 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
             onEventColorChange={handleEventColorChange}
             daysToShow={settings?.calendarDaysToShow ?? 7}
             weekStartsOn={settings?.weekStartsOn ?? 0}
+            editMode={editMode}
             onDaysToShowChange={async (n) => {
               if (!settings) return
               const updated = { ...settings, calendarDaysToShow: n }

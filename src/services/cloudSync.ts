@@ -112,7 +112,8 @@ export async function pullLocalStorageFromCloud(key: string): Promise<string | n
 }
 
 /**
- * Initialize: pull cloud data into localStorage for widget data.
+ * Initialize: test API, then pull settings from cloud and merge into local IndexedDB.
+ * Also pulls localStorage widget data.
  */
 export async function initCloudSync(): Promise<boolean> {
   try {
@@ -121,7 +122,31 @@ export async function initCloudSync(): Promise<boolean> {
       signal: AbortSignal.timeout(3000),
     });
     // 404 is fine (means API works but item doesn't exist)
-    return res.ok || res.status === 404;
+    if (!res.ok && res.status !== 404) return false;
+
+    // Pull settings from cloud and merge into local
+    const cloudSettings = await pullOneFromCloud('settings', 'main');
+    if (cloudSettings) {
+      const { db } = await import('../db');
+      const local = await db.settings.get('main');
+      if (!local) {
+        await db.settings.put(cloudSettings as never);
+      } else {
+        const merged = { ...local, ...cloudSettings, id: 'main' };
+        await db.settings.put(merged as never);
+      }
+    }
+
+    // Pull localStorage widget data
+    const WIDGET_KEYS = [
+      'pfd-chores', 'pfd-todos', 'pfd-notes', 'pfd-drawing', 'pfd-activities',
+      'pfd-clock-size',
+    ];
+    for (const key of WIDGET_KEYS) {
+      await pullLocalStorageFromCloud(key).catch(() => {});
+    }
+
+    return true;
   } catch {
     return false;
   }

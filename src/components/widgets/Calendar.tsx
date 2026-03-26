@@ -28,6 +28,7 @@ interface CalendarProps {
   onEventColorChange?: (eventId: string, color: string) => void;
   daysToShow: number;
   weekStartsOn: 0 | 1;
+  editMode?: boolean;
   onDaysToShowChange: (days: number) => void;
   onWeekStartsOnChange: (day: 0 | 1) => void;
 }
@@ -40,6 +41,7 @@ export function Calendar({
   onEventColorChange,
   daysToShow,
   weekStartsOn,
+  editMode = false,
   onDaysToShowChange,
   onWeekStartsOnChange,
 }: CalendarProps) {
@@ -134,7 +136,8 @@ export function Calendar({
 
   return (
     <>
-      {/* View controls */}
+      {/* View controls — only in edit mode */}
+      {editMode && (
       <div className="flex items-center gap-2 mb-2 relative">
         <button
           onClick={() => setShowViewMenu(!showViewMenu)}
@@ -184,6 +187,7 @@ export function Calendar({
           </div>
         )}
       </div>
+      )}
 
       <div
         className="grid gap-1 h-full"

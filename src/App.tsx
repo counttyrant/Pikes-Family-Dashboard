@@ -14,6 +14,7 @@ import { LoginScreen } from './components/auth/LoginScreen'
 import { useAuth } from './contexts/AuthContext'
 import { db } from './db'
 import { getSettings } from './services/storage'
+import { initCloudSync } from './services/cloudSync'
 import type { DashboardSettings } from './types'
 import { Maximize, Minimize, Settings } from 'lucide-react'
 
@@ -25,6 +26,13 @@ function AppContent() {
   const [settings, setSettings] = useState<DashboardSettings | null>(null)
 
   const dbSettings = useLiveQuery(() => db.settings.get('main'))
+
+  // Pull settings from cloud on first load
+  useEffect(() => {
+    initCloudSync().then((ok) => {
+      if (ok) console.log('Cloud sync initialized — settings pulled from cloud');
+    });
+  }, [])
 
   useEffect(() => {
     getSettings().then(setSettings)

@@ -18,7 +18,7 @@ function loadSize(): number {
   } catch { return 3; }
 }
 
-export function Clock() {
+export function Clock({ editMode = false }: { editMode?: boolean }) {
   const [now, setNow] = useState(new Date());
   const [colonVisible, setColonVisible] = useState(true);
   const [sizeIdx, setSizeIdx] = useState(loadSize);
@@ -52,10 +52,10 @@ export function Clock() {
   return (
     <div
       className="flex flex-col items-center justify-center select-none relative h-full"
-      onClick={() => setShowControls(true)}
+      onClick={() => editMode && setShowControls(true)}
     >
-      {/* Size controls */}
-      {showControls && (
+      {/* Size controls — only in edit mode */}
+      {editMode && showControls && (
         <div
           className="absolute top-1 right-1 flex items-center gap-1 bg-slate-800/90 rounded-lg px-2 py-1 z-10 border border-white/10"
           onClick={(e) => e.stopPropagation()}
