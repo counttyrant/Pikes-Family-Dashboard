@@ -49,6 +49,7 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { ALL_PAGES, DEFAULT_PAGE_ORDER } from '../../constants/pages';
+import { WIDGET_REGISTRY } from '../widgets/widgetRegistry';
 
 /* -------------------------------------------------------------------------- */
 /*  Helpers                                                                   */
@@ -508,6 +509,28 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                   <span className="text-[0.6rem] text-white/70">{t.emoji} {t.label}</span>
                 </button>
               ))}
+            </div>
+
+            {/* Widget transparency shortcuts */}
+            <div className="mt-3 pt-3 border-t border-white/10 flex gap-2">
+              <button
+                onClick={() => {
+                  const colors: Record<string, string> = {};
+                  WIDGET_REGISTRY.forEach((w) => { colors[w.id] = 'transparent'; });
+                  save({ widgetColors: colors });
+                }}
+                className="flex-1 px-3 py-2 text-xs bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-white/70"
+              >
+                🪟 All Transparent
+              </button>
+              <button
+                onClick={() => {
+                  save({ widgetColors: {} });
+                }}
+                className="flex-1 px-3 py-2 text-xs bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-white/70"
+              >
+                🎨 Reset Widget Colors
+              </button>
             </div>
           </Section>
 

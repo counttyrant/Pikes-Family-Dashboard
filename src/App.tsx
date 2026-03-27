@@ -23,7 +23,7 @@ import { getSettings } from './services/storage'
 import { initCloudSync } from './services/cloudSync'
 import { removeFromImmichAlbum } from './services/immich'
 import type { DashboardSettings } from './types'
-import { Maximize, Minimize, Settings, ChevronLeft, ChevronRight, ImagePlay, X, Home, Trash2, SkipForward, Shuffle } from 'lucide-react'
+import { Maximize, Minimize, Settings, ChevronLeft, ChevronRight, ImagePlay, X, Home, Trash2, Shuffle } from 'lucide-react'
 import { ALL_PAGES, DEFAULT_PAGE_ORDER } from './constants/pages'
 
 // Re-export for any other consumers
@@ -203,6 +203,9 @@ function AppContent() {
           {/* Clock overlay */}
           <PictureModeClock />
 
+          {/* Next event overlay */}
+          <PictureModeNextEvent accessToken={user?.accessToken} settings={settings} />
+
           {/* Controls — visible on hover/tap */}
           <div className="absolute top-4 right-4 z-50 flex gap-2 opacity-0 hover:opacity-100 transition-opacity duration-300"
             style={{ opacity: undefined }}
@@ -322,13 +325,6 @@ function AppContent() {
               <ChevronRight size={18} />
             </button>
             <button
-              onClick={() => slideshowRef.current?.advance()}
-              className="rounded-full bg-black/40 p-2.5 backdrop-blur-sm hover:bg-black/60 transition-colors"
-              title="Next photo"
-            >
-              <SkipForward size={18} />
-            </button>
-            <button
               onClick={() => slideshowRef.current?.shuffle()}
               className="rounded-full bg-black/40 p-2.5 backdrop-blur-sm hover:bg-purple-500/60 transition-colors"
               title="Shuffle photos"
@@ -376,6 +372,93 @@ function PictureModeClock() {
       <div className="text-xl text-white/80">
         {now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
       </div>
+    </div>
+  );
+}
+
+function PictureModeNextEvent({ accessToken, settings }: { accessToken?: string; settings: DashboardSettings | null }) {
+  const [nextEvent, setNextEvent] = useState<{ title: string; time: string; emoji?: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const findNext = async () => {
+      const now = new Date();
+      const todayEnd = new Date(now);
+      todayEnd.setHours(23, 59, 59, 999);
+      const candidates: { title: string; start: Date; emoji?: string }[] = [];
+
+      // 1. Google Calendar events
+      if (accessToken && settings?.selectedCalendarIds?.length) {
+        try {
+          const { fetchCalendarEvents } = await import('./services/googleCalendar');
+          for (const calId of settings.selectedCalendarIds) {
+            const events = await fetchCalendarEvents(accessToken, now, todayEnd, calId);
+            for (const e of events) {
+              const start = new Date(e.start);
+              if (start >= now) candidates.push({ title: e.title, start });
+            }
+          }
+        } catch { /* ignore calendar errors */ }
+      }
+
+      // 2. Local calendar events
+      try {
+        const localEvts = await db.localEvents.where('start').aboveOrEqual(now).toArray();
+        for (const e of localEvts) {
+          const start = new Date(e.start);
+          if (start >= now && start <= todayEnd) {
+            candidates.push({ title: e.title, start });
+          }
+        }
+      } catch { /* ignore */ }
+
+      // 3. Activities (from localStorage)
+      try {
+        const raw = localStorage.getItem('pfd-activities');
+        if (raw) {
+          const activities: { label: string; time?: string; done: boolean; emoji?: string }[] = JSON.parse(raw);
+          for (const a of activities) {
+            if (a.done || !a.time) continue;
+            const [h, m] = a.time.split(':').map(Number);
+            const aDate = new Date(now);
+            aDate.setHours(h, m, 0, 0);
+            if (aDate >= now && aDate <= todayEnd) {
+              candidates.push({ title: a.label, start: aDate, emoji: a.emoji });
+            }
+          }
+        }
+      } catch { /* ignore */ }
+
+      // Sort and pick earliest
+      candidates.sort((a, b) => a.start.getTime() - b.start.getTime());
+      const next = candidates[0];
+      if (!cancelled && next) {
+        setNextEvent({
+          title: next.title,
+          time: next.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          emoji: next.emoji,
+        });
+      } else if (!cancelled) {
+        setNextEvent(null);
+      }
+    };
+
+    findNext();
+    const interval = setInterval(findNext, 60_000); // refresh every minute
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [accessToken, settings?.selectedCalendarIds]);
+
+  if (!nextEvent) return null;
+
+  return (
+    <div className="absolute bottom-8 right-8 z-50 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
+      <div className="text-sm text-white/60 uppercase tracking-wider mb-1">Up Next</div>
+      <div className="text-2xl font-light">
+        {nextEvent.emoji && <span className="mr-2">{nextEvent.emoji}</span>}
+        {nextEvent.title}
+      </div>
+      <div className="text-lg text-white/70">{nextEvent.time}</div>
     </div>
   );
 }

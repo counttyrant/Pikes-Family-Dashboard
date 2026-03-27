@@ -132,9 +132,9 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
     setInitialLoaded(false);
   }, [remoteUrls.length, photoSource]);
 
-  // Preload current + upcoming images to prevent flashing
+  // Preload first batch of images on initial load only
   useEffect(() => {
-    if (urls.length === 0) return;
+    if (initialLoaded || urls.length === 0) return;
     let cancelled = false;
     const toPreload = [];
     for (let i = 0; i < Math.min(4, urls.length); i++) {
@@ -144,7 +144,7 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
       if (!cancelled) setInitialLoaded(true);
     });
     return () => { cancelled = true; };
-  }, [currentIdx, urls]);
+  }, [initialLoaded, urls.length, currentIdx]);
 
   // Transition to a specific index
   const transitionTo = useCallback(async (targetIdx: number) => {
