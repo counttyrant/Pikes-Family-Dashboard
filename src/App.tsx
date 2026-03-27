@@ -49,7 +49,7 @@ function AppContent() {
   const resetControlsTimer = useCallback(() => {
     setShowControls(true)
     clearTimeout(controlsTimer.current)
-    controlsTimer.current = setTimeout(() => setShowControls(false), 4000)
+    controlsTimer.current = setTimeout(() => setShowControls(false), 120_000)
   }, [])
 
   useEffect(() => {
