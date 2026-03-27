@@ -64,9 +64,9 @@ export function WidgetContainer({
     <>
     <div
       className={`
-        rounded-2xl backdrop-blur-xl
+        rounded-2xl
         p-4 flex flex-col min-h-0 h-full relative overflow-hidden group
-        ${isTransparent ? '' : 'border shadow-lg shadow-black/20'}
+        ${isTransparent ? '' : 'backdrop-blur-xl border shadow-lg shadow-black/20'}
         ${editMode ? 'ring-1' : ''}
         ${className}
       `}
