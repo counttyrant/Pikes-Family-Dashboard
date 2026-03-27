@@ -202,6 +202,7 @@ export interface DashboardSettings {
   enabledPages: string[]; // ordered list of enabled page IDs
   autoPictureMode: boolean; // auto-enter picture mode on idle
   autoPictureModeTimeout: number; // seconds before auto picture mode
+  widgetBlur: Record<string, boolean>; // false = no blur for that widget
 }
 
 /* ── Misc ─────────────────────────────────────────────────────────────── */

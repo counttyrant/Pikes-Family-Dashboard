@@ -67,6 +67,7 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
   const allLayouts = settings?.layouts?.length ? settings.layouts : DEFAULT_LAYOUTS
   const calendarColors: Record<string, string> = settings?.calendarColors ?? {}
   const widgetColors: Record<string, string> = settings?.widgetColors ?? {}
+  const widgetBlur: Record<string, boolean> = settings?.widgetBlur ?? {}
   const eventColorOverrides: Record<string, string> = settings?.eventColorOverrides ?? {}
 
   const handleWidgetColorChange = useCallback((widgetId: string, color: string) => {
@@ -74,6 +75,12 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
     if (!color) delete updated[widgetId]
     saveSettings({ widgetColors: updated })
   }, [widgetColors])
+
+  const handleWidgetBlurChange = useCallback((widgetId: string, blur: boolean) => {
+    const updated = { ...widgetBlur, [widgetId]: blur }
+    if (blur) delete updated[widgetId] // true (blur on) is the default, no need to store
+    saveSettings({ widgetBlur: updated })
+  }, [widgetBlur])
 
   const handleEventColorChange = useCallback((eventId: string, color: string) => {
     const updated = { ...eventColorOverrides, [eventId]: color }
@@ -288,6 +295,8 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
                 editMode={editMode}
                 widgetColor={widgetColors[id]}
                 onColorChange={(color) => handleWidgetColorChange(id, color)}
+                widgetBlur={widgetBlur[id] !== false}
+                onBlurChange={(blur) => handleWidgetBlurChange(id, blur)}
               >
                 {renderWidget(id)}
               </WidgetContainer>
@@ -424,6 +433,8 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
               editMode={editMode}
               widgetColor={widgetColors[id]}
               onColorChange={(color) => handleWidgetColorChange(id, color)}
+              widgetBlur={widgetBlur[id] !== false}
+              onBlurChange={(blur) => handleWidgetBlurChange(id, blur)}
             >
               {renderWidget(id)}
             </WidgetContainer>

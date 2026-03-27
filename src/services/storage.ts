@@ -59,6 +59,7 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   enabledPages: ['dashboard', 'chores', 'shopping', 'activities', 'recipes', 'jellyfin'],
   autoPictureMode: true,
   autoPictureModeTimeout: 300,
+  widgetBlur: {},
 };
 
 export async function getSettings(): Promise<DashboardSettings> {

@@ -37,6 +37,8 @@ interface WidgetContainerProps {
   editMode?: boolean;
   widgetColor?: string;
   onColorChange?: (color: string) => void;
+  widgetBlur?: boolean; // true = blur on (default), false = no blur
+  onBlurChange?: (blur: boolean) => void;
 }
 
 export function WidgetContainer({
@@ -46,12 +48,15 @@ export function WidgetContainer({
   editMode = false,
   widgetColor,
   onColorChange,
+  widgetBlur = true,
+  onBlurChange,
 }: WidgetContainerProps) {
   const [showPalette, setShowPalette] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
   const bgColor = widgetColor || 'var(--theme-card, rgba(30, 41, 59, 0.7))';
   const isTransparent = widgetColor === 'transparent' || (!!widgetColor && parseRgba(widgetColor)?.[3] === 0);
+  const showBlur = widgetBlur && !isTransparent;
 
   // Current opacity for slider (0-100)
   const currentOpacity = useMemo(() => {
@@ -66,7 +71,8 @@ export function WidgetContainer({
       className={`
         rounded-2xl
         p-4 flex flex-col min-h-0 h-full relative overflow-hidden group
-        ${isTransparent ? '' : 'backdrop-blur-xl border shadow-lg shadow-black/20'}
+        ${showBlur ? 'backdrop-blur-xl' : ''}
+        ${isTransparent ? '' : 'border shadow-lg shadow-black/20'}
         ${editMode ? 'ring-1' : ''}
         ${className}
       `}
@@ -150,6 +156,21 @@ export function WidgetContainer({
                 />
                 <span className="text-[0.6rem] text-white/50 w-7 text-right">{currentOpacity}%</span>
               </div>
+            </div>
+          )}
+          {/* Blur toggle — shown whenever not fully transparent */}
+          {!isTransparent && onBlurChange && (
+            <div className="mt-2 pt-2 border-t border-white/10">
+              <button
+                onClick={() => onBlurChange(!widgetBlur)}
+                className={`w-full text-[0.6rem] py-1 px-2 rounded-lg transition-colors ${
+                  widgetBlur
+                    ? 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30'
+                    : 'bg-white/10 text-white/50 hover:bg-white/20'
+                }`}
+              >
+                {widgetBlur ? '💧 Blur: On' : '🚫 Blur: Off'}
+              </button>
             </div>
           )}
         </div>

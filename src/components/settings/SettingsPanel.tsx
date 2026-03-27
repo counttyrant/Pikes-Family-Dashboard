@@ -588,6 +588,25 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                   </span>
                 </div>
               </div>
+              {/* Global blur toggle */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const blurOff: Record<string, boolean> = {};
+                    WIDGET_REGISTRY.forEach((w) => { blurOff[w.id] = false; });
+                    save({ widgetBlur: blurOff });
+                  }}
+                  className="flex-1 px-3 py-2 text-xs bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-white/70"
+                >
+                  🚫 Remove All Blur
+                </button>
+                <button
+                  onClick={() => save({ widgetBlur: {} })}
+                  className="flex-1 px-3 py-2 text-xs bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-white/70"
+                >
+                  💧 Restore All Blur
+                </button>
+              </div>
             </div>
           </Section>
 
