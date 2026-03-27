@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, useMemo, type ReactNode } from 'react';
 import { GripHorizontal, Palette, Maximize2, Minimize2 } from 'lucide-react';
 
 const WIDGET_COLOR_PRESETS = [
@@ -17,6 +17,18 @@ const WIDGET_COLOR_PRESETS = [
   { label: 'Rose', value: 'rgba(136, 19, 55, 0.6)' },
   { label: 'Indigo', value: 'rgba(49, 46, 129, 0.6)' },
 ];
+
+/** Parse rgba string and return [r, g, b, a] or null */
+function parseRgba(val: string): [number, number, number, number] | null {
+  const m = val.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)/);
+  if (!m) return null;
+  return [+m[1], +m[2], +m[3], m[4] !== undefined ? +m[4] : 1];
+}
+
+/** Build rgba string */
+function toRgba(r: number, g: number, b: number, a: number): string {
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
 
 interface WidgetContainerProps {
   title: string;
@@ -39,7 +51,14 @@ export function WidgetContainer({
   const [isExpanded, setIsExpanded] = useState(false);
 
   const bgColor = widgetColor || 'var(--theme-card, rgba(30, 41, 59, 0.7))';
-  const isTransparent = widgetColor === 'transparent' || widgetColor === 'rgba(255, 255, 255, 0.05)';
+  const isTransparent = widgetColor === 'transparent' || (!!widgetColor && parseRgba(widgetColor)?.[3] === 0);
+
+  // Current opacity for slider (0-100)
+  const currentOpacity = useMemo(() => {
+    if (!widgetColor || widgetColor === 'transparent') return 0;
+    const parsed = parseRgba(widgetColor);
+    return parsed ? Math.round(parsed[3] * 100) : 70;
+  }, [widgetColor]);
 
   return (
     <>
@@ -99,7 +118,7 @@ export function WidgetContainer({
             {WIDGET_COLOR_PRESETS.map((preset) => (
               <button
                 key={preset.label}
-                onClick={() => { onColorChange(preset.value); setShowPalette(false); }}
+                onClick={() => { onColorChange(preset.value); }}
                 className={`w-7 h-7 rounded-full border-2 transition-all hover:scale-110 ${
                   (widgetColor || '') === preset.value ? 'border-white scale-110' : 'border-transparent'
                 }`}
@@ -110,6 +129,29 @@ export function WidgetContainer({
               />
             ))}
           </div>
+          {/* Opacity slider */}
+          {widgetColor && widgetColor !== '' && widgetColor !== 'transparent' && (
+            <div className="mt-2 pt-2 border-t border-white/10">
+              <div className="flex items-center gap-2">
+                <span className="text-[0.6rem] text-white/50 w-12">Opacity</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={currentOpacity}
+                  onChange={(e) => {
+                    const parsed = parseRgba(widgetColor);
+                    if (parsed) {
+                      const newAlpha = +e.target.value / 100;
+                      onColorChange(toRgba(parsed[0], parsed[1], parsed[2], Math.round(newAlpha * 100) / 100));
+                    }
+                  }}
+                  className="flex-1 h-1 accent-blue-500 cursor-pointer"
+                />
+                <span className="text-[0.6rem] text-white/50 w-7 text-right">{currentOpacity}%</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

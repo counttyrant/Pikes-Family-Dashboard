@@ -200,6 +200,8 @@ export interface DashboardSettings {
   openaiTtsVoice: string; // OpenAI voice: alloy, echo, fable, onyx, nova, shimmer
   openaiTtsModel: string; // tts-1 or tts-1-hd
   enabledPages: string[]; // ordered list of enabled page IDs
+  autoPictureMode: boolean; // auto-enter picture mode on idle
+  autoPictureModeTimeout: number; // seconds before auto picture mode
 }
 
 /* ── Misc ─────────────────────────────────────────────────────────────── */

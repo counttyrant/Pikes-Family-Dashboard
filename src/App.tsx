@@ -21,9 +21,9 @@ import { useAuth } from './contexts/AuthContext'
 import { db } from './db'
 import { getSettings } from './services/storage'
 import { initCloudSync } from './services/cloudSync'
-import { removeFromImmichAlbum } from './services/immich'
+import { removeFromImmichAlbum, toggleImmichFavorite } from './services/immich'
 import type { DashboardSettings } from './types'
-import { Maximize, Minimize, Settings, ChevronLeft, ChevronRight, ImagePlay, X, Home, Trash2, Shuffle } from 'lucide-react'
+import { Maximize, Minimize, Settings, ChevronLeft, ChevronRight, ImagePlay, X, Home, Trash2, Shuffle, Heart } from 'lucide-react'
 import { ALL_PAGES, DEFAULT_PAGE_ORDER } from './constants/pages'
 
 // Re-export for any other consumers
@@ -41,6 +41,27 @@ function AppContent() {
   const swiperRef = useRef<SwiperType | null>(null)
   const slideshowRef = useRef<PhotoSlideshowHandle | null>(null)
   const touchStartX = useRef(0)
+
+  // Auto-hide controls after inactivity
+  const [showControls, setShowControls] = useState(true)
+  const controlsTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  const resetControlsTimer = useCallback(() => {
+    setShowControls(true)
+    clearTimeout(controlsTimer.current)
+    controlsTimer.current = setTimeout(() => setShowControls(false), 4000)
+  }, [])
+
+  useEffect(() => {
+    const handleInteraction = () => resetControlsTimer()
+    const events = ['mousemove', 'mousedown', 'touchstart', 'keydown']
+    events.forEach(e => window.addEventListener(e, handleInteraction))
+    resetControlsTimer()
+    return () => {
+      clearTimeout(controlsTimer.current)
+      events.forEach(e => window.removeEventListener(e, handleInteraction))
+    }
+  }, [resetControlsTimer])
 
   const dbSettings = useLiveQuery(() => db.settings.get('main'))
 
@@ -97,6 +118,29 @@ function AppContent() {
     }
   }, [screenSaverTimeout])
 
+  // Auto picture mode on idle
+  const autoPictureMode = settings?.autoPictureMode ?? true;
+  const autoPictureModeTimeout = settings?.autoPictureModeTimeout ?? 300;
+  useEffect(() => {
+    if (!autoPictureMode) return;
+    const timeout = autoPictureModeTimeout * 1000;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => setPictureMode(true), timeout);
+    };
+
+    const events = ['mousemove', 'mousedown', 'touchstart', 'keydown', 'scroll'];
+    events.forEach(e => window.addEventListener(e, reset));
+    reset();
+
+    return () => {
+      clearTimeout(timer);
+      events.forEach(e => window.removeEventListener(e, reset));
+    };
+  }, [autoPictureMode, autoPictureModeTimeout])
+
   // Fullscreen handler
   useEffect(() => {
     const onChange = () => setIsFullscreen(!!document.fullscreenElement)
@@ -140,6 +184,20 @@ function AppContent() {
       }
     }
   }, [settings]);
+
+  // Favorite current photo in Immich
+  const [isFavorited, setIsFavorited] = useState(false)
+  const handleFavoritePhoto = useCallback(async () => {
+    const info = slideshowRef.current?.getCurrentInfo();
+    if (!info || info.source !== 'immich' || !info.immichAssetId || !settings) return;
+    const newVal = !isFavorited;
+    try {
+      await toggleImmichFavorite(settings.immichUrl, settings.immichApiKey, info.immichAssetId, newVal);
+      setIsFavorited(newVal);
+    } catch (err) {
+      console.error('Failed to toggle favorite:', err);
+    }
+  }, [settings, isFavorited]);
 
   // Show login screen if not authenticated
   if (!user) {
@@ -206,12 +264,8 @@ function AppContent() {
           {/* Next event overlay */}
           <PictureModeNextEvent accessToken={user?.accessToken} settings={settings} />
 
-          {/* Controls — visible on hover/tap */}
-          <div className="absolute top-4 right-4 z-50 flex gap-2 opacity-0 hover:opacity-100 transition-opacity duration-300"
-            style={{ opacity: undefined }}
-            onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.3'; }}
-          >
+          {/* Controls — visible when showControls is true */}
+          <div className={`absolute top-4 right-4 z-50 flex gap-2 transition-opacity duration-500 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
             <button
               onClick={(e) => { e.stopPropagation(); slideshowRef.current?.previous(); }}
               className="rounded-full bg-black/40 p-3 backdrop-blur-sm hover:bg-black/60 transition-colors"
@@ -232,6 +286,13 @@ function AppContent() {
               title="Shuffle photos"
             >
               <Shuffle size={20} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleFavoritePhoto(); }}
+              className={`rounded-full p-3 backdrop-blur-sm transition-colors ${isFavorited ? 'bg-pink-500/60 hover:bg-pink-500/80' : 'bg-black/40 hover:bg-pink-500/40'}`}
+              title={isFavorited ? 'Unfavorite' : 'Add to favorites'}
+            >
+              <Heart size={20} fill={isFavorited ? 'currentColor' : 'none'} />
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); handleDeletePhoto(); }}
@@ -255,7 +316,7 @@ function AppContent() {
       {!pictureMode && (
         <>
           {/* Top bar controls */}
-          <div className="fixed top-4 right-4 z-40 flex gap-2">
+          <div className={`fixed top-4 right-4 z-40 flex gap-2 transition-opacity duration-500 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
             <button
               onClick={() => setPictureMode(true)}
               className="rounded-full bg-black/40 p-3 backdrop-blur-sm hover:bg-black/60 transition-colors"
@@ -298,7 +359,7 @@ function AppContent() {
           </Swiper>
 
           {/* Bottom navigation bar */}
-          <div className="fixed bottom-4 left-4 z-40 flex items-center gap-2">
+          <div className={`fixed bottom-4 left-4 z-40 flex items-center gap-2 transition-opacity duration-500 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
             <button
               onClick={() => {
                 const sw = swiperRef.current;
@@ -337,20 +398,22 @@ function AppContent() {
           <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
           {/* AI Assistant */}
-          <AiAssistant
-            apiKey={settings?.openaiApiKey || ''}
-            aiProvider={settings?.aiProvider || 'openai'}
-            azureEndpoint={settings?.azureEndpoint || ''}
-            azureDeployment={settings?.azureDeployment || ''}
-            openaiModel={settings?.openaiModel || 'gpt-4o-mini'}
-            ttsEngine={settings?.ttsEngine || 'openai'}
-            ttsVoiceName={settings?.ttsVoiceName || ''}
-            ttsRate={settings?.ttsRate ?? 0.95}
-            ttsPitch={settings?.ttsPitch ?? 1.1}
-            openaiTtsApiKey={settings?.openaiTtsApiKey || ''}
-            openaiTtsVoice={settings?.openaiTtsVoice || 'nova'}
-            openaiTtsModel={settings?.openaiTtsModel || 'tts-1'}
-          />
+          <div className={`transition-opacity duration-500 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            <AiAssistant
+              apiKey={settings?.openaiApiKey || ''}
+              aiProvider={settings?.aiProvider || 'openai'}
+              azureEndpoint={settings?.azureEndpoint || ''}
+              azureDeployment={settings?.azureDeployment || ''}
+              openaiModel={settings?.openaiModel || 'gpt-4o-mini'}
+              ttsEngine={settings?.ttsEngine || 'openai'}
+              ttsVoiceName={settings?.ttsVoiceName || ''}
+              ttsRate={settings?.ttsRate ?? 0.95}
+              ttsPitch={settings?.ttsPitch ?? 1.1}
+              openaiTtsApiKey={settings?.openaiTtsApiKey || ''}
+              openaiTtsVoice={settings?.openaiTtsVoice || 'nova'}
+              openaiTtsModel={settings?.openaiTtsModel || 'tts-1'}
+            />
+          </div>
         </>
       )}
     </div>

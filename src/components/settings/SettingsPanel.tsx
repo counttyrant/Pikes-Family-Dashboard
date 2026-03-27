@@ -512,25 +512,82 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
             </div>
 
             {/* Widget transparency shortcuts */}
-            <div className="mt-3 pt-3 border-t border-white/10 flex gap-2">
-              <button
-                onClick={() => {
-                  const colors: Record<string, string> = {};
-                  WIDGET_REGISTRY.forEach((w) => { colors[w.id] = 'transparent'; });
-                  save({ widgetColors: colors });
-                }}
-                className="flex-1 px-3 py-2 text-xs bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-white/70"
-              >
-                🪟 All Transparent
-              </button>
-              <button
-                onClick={() => {
-                  save({ widgetColors: {} });
-                }}
-                className="flex-1 px-3 py-2 text-xs bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-white/70"
-              >
-                🎨 Reset Widget Colors
-              </button>
+            <div className="mt-3 pt-3 border-t border-white/10 space-y-3">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const colors: Record<string, string> = {};
+                    WIDGET_REGISTRY.forEach((w) => { colors[w.id] = 'transparent'; });
+                    save({ widgetColors: colors });
+                  }}
+                  className="flex-1 px-3 py-2 text-xs bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-white/70"
+                >
+                  🪟 All Transparent
+                </button>
+                <button
+                  onClick={() => {
+                    save({ widgetColors: {} });
+                  }}
+                  className="flex-1 px-3 py-2 text-xs bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-white/70"
+                >
+                  🎨 Reset Widget Colors
+                </button>
+              </div>
+              {/* Global opacity slider */}
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-white/50 w-24">All Widget Opacity</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={(() => {
+                      const colors = settings.widgetColors ?? {};
+                      const vals = Object.values(colors);
+                      if (vals.length === 0) return 70;
+                      const first = vals[0];
+                      if (first === 'transparent') return 0;
+                      const m = first.match(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(?:,\s*([\d.]+))?\s*\)/);
+                      return m?.[1] !== undefined ? Math.round(+m[1] * 100) : 70;
+                    })()}
+                    onChange={(e) => {
+                      const opacity = +e.target.value / 100;
+                      const colors: Record<string, string> = {};
+                      if (opacity === 0) {
+                        WIDGET_REGISTRY.forEach((w) => { colors[w.id] = 'transparent'; });
+                      } else {
+                        const current = settings.widgetColors ?? {};
+                        WIDGET_REGISTRY.forEach((w) => {
+                          const existing = current[w.id] || 'rgba(30, 41, 59, 0.7)';
+                          if (existing === 'transparent') {
+                            colors[w.id] = `rgba(30, 41, 59, ${opacity})`;
+                          } else {
+                            const m = existing.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+                            if (m) {
+                              colors[w.id] = `rgba(${m[1]}, ${m[2]}, ${m[3]}, ${Math.round(opacity * 100) / 100})`;
+                            } else {
+                              colors[w.id] = `rgba(30, 41, 59, ${opacity})`;
+                            }
+                          }
+                        });
+                      }
+                      save({ widgetColors: colors });
+                    }}
+                    className="flex-1 h-1 accent-blue-500 cursor-pointer"
+                  />
+                  <span className="text-xs text-white/50 w-8 text-right">
+                    {(() => {
+                      const colors = settings.widgetColors ?? {};
+                      const vals = Object.values(colors);
+                      if (vals.length === 0) return '70%';
+                      const first = vals[0];
+                      if (first === 'transparent') return '0%';
+                      const m = first.match(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(?:,\s*([\d.]+))?\s*\)/);
+                      return m?.[1] !== undefined ? `${Math.round(+m[1] * 100)}%` : '70%';
+                    })()}
+                  </span>
+                </div>
+              </div>
             </div>
           </Section>
 
@@ -1000,6 +1057,25 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
               onChange={(v) => save({ screenSaverTimeout: parseInt(v) || 300 })}
               type="number"
             />
+            <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
+              <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.autoPictureMode ?? true}
+                  onChange={(e) => save({ autoPictureMode: e.target.checked })}
+                  className="accent-blue-500"
+                />
+                Auto picture mode on idle
+              </label>
+              {(settings.autoPictureMode ?? true) && (
+                <InputField
+                  label="Auto picture mode timeout (seconds)"
+                  value={String(settings.autoPictureModeTimeout ?? 300)}
+                  onChange={(v) => save({ autoPictureModeTimeout: parseInt(v) || 300 })}
+                  type="number"
+                />
+              )}
+            </div>
           </Section>
 
           {/* ---- Access Control ---- */}

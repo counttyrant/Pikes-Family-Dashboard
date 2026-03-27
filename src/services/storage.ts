@@ -57,6 +57,8 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   openaiTtsVoice: 'nova',
   openaiTtsModel: 'tts-1',
   enabledPages: ['dashboard', 'chores', 'shopping', 'activities', 'recipes', 'jellyfin'],
+  autoPictureMode: true,
+  autoPictureModeTimeout: 300,
 };
 
 export async function getSettings(): Promise<DashboardSettings> {

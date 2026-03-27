@@ -48,6 +48,29 @@ export async function removeFromImmichAlbum(
   }
 }
 
+export async function toggleImmichFavorite(
+  serverUrl: string,
+  apiKey: string,
+  assetId: string,
+  isFavorite: boolean
+): Promise<void> {
+  const url = serverUrl.replace(/\/+$/, '');
+  const params = new URLSearchParams({
+    server: url,
+    path: `/api/assets/${assetId}`,
+    apiKey,
+  });
+  const response = await fetch(`${PROXY_BASE}?${params}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ isFavorite }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to toggle favorite: ${response.status}`);
+  }
+}
+
 export async function fetchImmichAlbumPhotos(
   serverUrl: string,
   apiKey: string,

@@ -8,7 +8,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/fu
  * Supports both JSON (album listings) and binary (thumbnails) responses.
  */
 app.http('immichProxy', {
-  methods: ['GET', 'DELETE'],
+  methods: ['GET', 'DELETE', 'PUT'],
   authLevel: 'anonymous',
   route: 'immich-proxy',
   handler: async (req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> => {
@@ -29,7 +29,7 @@ app.http('immichProxy', {
       const fetchHeaders: Record<string, string> = { 'x-api-key': apiKey };
       const fetchOptions: RequestInit = { method: req.method, headers: fetchHeaders };
 
-      if (req.method === 'DELETE') {
+      if (req.method === 'DELETE' || req.method === 'PUT') {
         const body = await req.text();
         if (body) {
           fetchOptions.body = body;
