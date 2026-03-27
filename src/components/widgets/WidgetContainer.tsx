@@ -3,6 +3,9 @@ import { GripHorizontal, Palette, Maximize2, Minimize2 } from 'lucide-react';
 
 const WIDGET_COLOR_PRESETS = [
   { label: 'Theme default', value: '' },
+  { label: 'Transparent', value: 'transparent' },
+  { label: 'Glass', value: 'rgba(255, 255, 255, 0.05)' },
+  { label: 'Smoke', value: 'rgba(0, 0, 0, 0.3)' },
   { label: 'Slate', value: 'rgba(30, 41, 59, 0.7)' },
   { label: 'Blue', value: 'rgba(30, 58, 138, 0.6)' },
   { label: 'Purple', value: 'rgba(88, 28, 135, 0.6)' },
@@ -36,20 +39,21 @@ export function WidgetContainer({
   const [isExpanded, setIsExpanded] = useState(false);
 
   const bgColor = widgetColor || 'var(--theme-card, rgba(30, 41, 59, 0.7))';
+  const isTransparent = widgetColor === 'transparent' || widgetColor === 'rgba(255, 255, 255, 0.05)';
 
   return (
     <>
     <div
       className={`
-        rounded-2xl border backdrop-blur-xl
-        shadow-lg shadow-black/20
+        rounded-2xl backdrop-blur-xl
         p-4 flex flex-col min-h-0 h-full relative overflow-hidden group
+        ${isTransparent ? '' : 'border shadow-lg shadow-black/20'}
         ${editMode ? 'ring-1' : ''}
         ${className}
       `}
       style={{
         backgroundColor: bgColor,
-        borderColor: 'color-mix(in srgb, var(--theme-accent, #3b82f6) 15%, transparent)',
+        ...(isTransparent ? {} : { borderColor: 'color-mix(in srgb, var(--theme-accent, #3b82f6) 15%, transparent)' }),
         ...(editMode ? { '--tw-ring-color': 'color-mix(in srgb, var(--theme-accent, #3b82f6) 40%, transparent)' } as React.CSSProperties : {}),
       }}
     >

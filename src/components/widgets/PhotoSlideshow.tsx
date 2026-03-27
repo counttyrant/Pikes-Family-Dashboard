@@ -125,9 +125,10 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
   const safeIdx = urls.length > 0 ? currentIdx % urls.length : 0;
   const displayUrl = urls.length > 0 ? urls[safeIdx] : null;
 
-  // Reset index when URL list changes
+  // Start at random index when URL list changes
   useEffect(() => {
-    setCurrentIdx(0);
+    const len = photoSource === 'local' ? (localPhotos?.length ?? 0) : remoteUrls.length;
+    setCurrentIdx(len > 1 ? Math.floor(Math.random() * len) : 0);
     setInitialLoaded(false);
   }, [remoteUrls.length, photoSource]);
 
