@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { GridLayout } from 'react-grid-layout'
+import { GridLayout, noCompactor } from 'react-grid-layout'
 import { Clock } from '../components/widgets/Clock'
 import { Weather } from '../components/widgets/Weather'
 import { Calendar } from '../components/widgets/Calendar'
@@ -422,6 +422,7 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
         gridConfig={{ cols: 12, rowHeight: 80, margin: [16, 16] }}
         dragConfig={{ enabled: editMode, handle: '.drag-handle' }}
         resizeConfig={{ enabled: editMode, handles: ['se', 'sw', 'ne', 'nw'] }}
+        compactor={noCompactor}
         autoSize={true}
         onLayoutChange={(layout) => handleLayoutChange(layout)}
       >
