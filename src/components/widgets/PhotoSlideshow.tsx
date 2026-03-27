@@ -38,6 +38,7 @@ export interface PhotoInfo {
 export interface PhotoSlideshowHandle {
   advance: () => void;
   previous: () => void;
+  shuffle: () => void;
   getCurrentInfo: () => PhotoInfo | null;
   removeCurrentFromList: () => void;
 }
@@ -186,6 +187,18 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
     setCurrentIdx(prev => prev >= urls.length - 1 ? 0 : prev);
   }, [currentIdx, urls.length]);
 
+  const shufflePhotos = useCallback(() => {
+    setRemoteUrls(prev => {
+      const shuffled = [...prev];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    });
+    setCurrentIdx(0);
+  }, []);
+
   const getCurrentInfo = useCallback((): PhotoInfo | null => {
     if (urls.length === 0) return null;
     const url = urls[safeIdx];
@@ -201,9 +214,10 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
   useImperativeHandle(ref, () => ({
     advance: advancePhoto,
     previous: previousPhoto,
+    shuffle: shufflePhotos,
     getCurrentInfo,
     removeCurrentFromList,
-  }), [advancePhoto, previousPhoto, getCurrentInfo, removeCurrentFromList]);
+  }), [advancePhoto, previousPhoto, shufflePhotos, getCurrentInfo, removeCurrentFromList]);
 
   // Slideshow timer
   const advanceRef = useRef(advancePhoto);

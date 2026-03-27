@@ -23,7 +23,7 @@ import { getSettings } from './services/storage'
 import { initCloudSync } from './services/cloudSync'
 import { removeFromImmichAlbum } from './services/immich'
 import type { DashboardSettings } from './types'
-import { Maximize, Minimize, Settings, ChevronLeft, ChevronRight, ImagePlay, X, Home, Trash2, SkipForward } from 'lucide-react'
+import { Maximize, Minimize, Settings, ChevronLeft, ChevronRight, ImagePlay, X, Home, Trash2, SkipForward, Shuffle } from 'lucide-react'
 import { ALL_PAGES, DEFAULT_PAGE_ORDER } from './constants/pages'
 
 // Re-export for any other consumers
@@ -224,6 +224,13 @@ function AppContent() {
               <ChevronRight size={20} />
             </button>
             <button
+              onClick={(e) => { e.stopPropagation(); slideshowRef.current?.shuffle(); }}
+              className="rounded-full bg-black/40 p-3 backdrop-blur-sm hover:bg-purple-500/60 transition-colors"
+              title="Shuffle photos"
+            >
+              <Shuffle size={20} />
+            </button>
+            <button
               onClick={(e) => { e.stopPropagation(); handleDeletePhoto(); }}
               className="rounded-full bg-black/40 p-3 backdrop-blur-sm hover:bg-red-500/60 transition-colors"
               title="Remove from album"
@@ -320,6 +327,13 @@ function AppContent() {
               title="Next photo"
             >
               <SkipForward size={18} />
+            </button>
+            <button
+              onClick={() => slideshowRef.current?.shuffle()}
+              className="rounded-full bg-black/40 p-2.5 backdrop-blur-sm hover:bg-purple-500/60 transition-colors"
+              title="Shuffle photos"
+            >
+              <Shuffle size={18} />
             </button>
           </div>
 
