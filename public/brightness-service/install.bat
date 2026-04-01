@@ -5,6 +5,15 @@ echo.
 REM Get the directory of this script
 set "DIR=%~dp0"
 set "SCRIPT=%DIR%server.js"
+set "STARTER=%DIR%start-service.bat"
+
+REM Check server.js is present
+if not exist "%SCRIPT%" (
+    echo ERROR: server.js not found in %DIR%
+    echo Make sure you copied the entire brightness-service folder.
+    pause
+    exit /b 1
+)
 
 REM Check Node.js is installed
 where node >nul 2>&1
@@ -15,18 +24,19 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-REM Register a scheduled task to run at logon
+REM Register a scheduled task using start-service.bat as the command
+REM (avoids quoting issues with paths that contain spaces)
 echo Registering Windows startup task...
-schtasks /create /tn "PikesBrightnessService" /tr "node \"%SCRIPT%\"" /sc onlogon /ru "%USERNAME%" /rl HIGHEST /f
+schtasks /create /tn "PikesBrightnessService" /tr "\"%STARTER%\"" /sc onlogon /ru "%USERNAME%" /rl HIGHEST /f
 if %ERRORLEVEL% neq 0 (
     echo WARNING: Could not register startup task. Try running as Administrator.
 ) else (
     echo Startup task registered successfully.
 )
 
-REM Start the service right now
+REM Start the service immediately using pushd so the working dir is correct
 echo Starting service...
-start "" /b node "%SCRIPT%"
+start "PikesBrightness" /d "%DIR%" /min cmd /c node server.js
 
 echo.
 echo Done! The brightness service is now running on port 3737.
