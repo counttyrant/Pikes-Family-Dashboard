@@ -6,7 +6,6 @@ import {
   StickyNote,
   ListChecks,
   CheckSquare,
-  Quote,
   Sparkles,
   ChefHat,
   type LucideIcon,
@@ -84,15 +83,6 @@ export const WIDGET_REGISTRY: WidgetDefinition[] = [
     icon: StickyNote,
     defaultLayout: { w: 3, h: 3 },
     minW: 2,
-    minH: 2,
-  },
-  {
-    id: 'quote',
-    label: 'Daily Quote',
-    description: 'Inspirational quote that changes daily',
-    icon: Quote,
-    defaultLayout: { w: 4, h: 3 },
-    minW: 3,
     minH: 2,
   },
   {

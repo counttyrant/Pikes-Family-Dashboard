@@ -155,11 +155,13 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
     transitioningRef.current = true;
     await preloadImage(currentUrls[targetIdx]);
 
+    // Update index BEFORE transitioning so the background-image URL is already
+    // correct when the opacity fade begins — prevents the end-of-transition flash.
+    setCurrentIdx(targetIdx);
     setNextUrl(currentUrls[targetIdx]);
     setTransitioning(true);
 
     setTimeout(() => {
-      setCurrentIdx(targetIdx);
       setTransitioning(false);
       setNextUrl(null);
       transitioningRef.current = false;

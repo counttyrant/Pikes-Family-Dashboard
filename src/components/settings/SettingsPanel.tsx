@@ -18,6 +18,7 @@ import { fetchImmichAlbums } from '../../services/immich';
 import { fetchGooglePhotosAlbums } from '../../services/googlePhotos';
 import { fetchCalendarList } from '../../services/googleCalendar';
 import { saveAllToCloud, loadAllFromCloud } from '../../services/cloudSync';
+import { checkBrightnessService } from '../../services/brightnessService';
 import {
   Settings,
   X,
@@ -37,6 +38,7 @@ import {
   Bot,
   Info,
   Camera,
+  Mic,
   Palette,
   Shield,
   LogOut,
@@ -46,6 +48,10 @@ import {
   EyeOff,
   ArrowUp,
   ArrowDown,
+  Download,
+  CheckCircle,
+  XCircle,
+  Sun,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { ALL_PAGES, DEFAULT_PAGE_ORDER } from '../../constants/pages';
@@ -265,6 +271,7 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
 
   const [immichLoading, setImmichLoading] = useState(false);
   const [immichError, setImmichError] = useState('');
+  const [brightnessTestStatus, setBrightnessTestStatus] = useState<'idle' | 'ok' | 'fail'>('idle');
 
   const handleFetchImmichAlbums = async () => {
     if (!settings?.immichUrl || !settings?.immichApiKey) {
@@ -1100,7 +1107,7 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
           {/* ---- Presence & Wake ---- */}
           <Section title="Presence & Wake" icon={<Camera size={16} className="text-cyan-400" />}>
             <p className="text-xs text-white/40 mb-3">
-              Uses the front camera to detect motion and keep the screen awake. Releases the wake lock after the inactivity timeout.
+              Detects motion or sound to keep the screen awake. Screen dims after the inactivity timeout.
             </p>
             <div className="space-y-3">
               {/* Master toggle */}
@@ -1116,6 +1123,27 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
 
               {(settings.presenceDetectionEnabled ?? false) && (
                 <>
+                  {/* Source selector */}
+                  <div className="space-y-1">
+                    <span className="text-xs text-white/60">Detection source</span>
+                    <div className="flex gap-2 mt-1">
+                      {(['camera', 'microphone'] as const).map((src) => (
+                        <button
+                          key={src}
+                          onClick={() => save({ presenceSource: src })}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                            (settings.presenceSource ?? 'camera') === src
+                              ? 'bg-cyan-500/30 text-cyan-300 ring-1 ring-cyan-400/40'
+                              : 'bg-white/5 text-white/50 hover:bg-white/10'
+                          }`}
+                        >
+                          {src === 'camera' ? <Camera size={12} /> : <Mic size={12} />}
+                          {src === 'camera' ? 'Camera' : 'Microphone'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Sensitivity */}
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs text-white/60">
@@ -1138,7 +1166,7 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
 
                   {/* Inactivity timeout */}
                   <div className="space-y-1">
-                    <span className="text-xs text-white/60">Release wake lock after (minutes of no motion)</span>
+                    <span className="text-xs text-white/60">Dim after (minutes of no activity)</span>
                     <div className="flex flex-wrap gap-2 mt-1">
                       {[1, 2, 5, 10, 15].map((mins) => (
                         <button
@@ -1189,6 +1217,161 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                       </div>
                     </div>
                   )}
+
+                  {/* Dim overlay */}
+                  <div className="pt-2 border-t border-white/10 space-y-3">
+                    <label className="flex items-center justify-between gap-3 cursor-pointer">
+                      <span className="text-sm text-white/80">Dim screen when idle</span>
+                      <input
+                        type="checkbox"
+                        checked={settings.dimEnabled ?? false}
+                        onChange={(e) => save({ dimEnabled: e.target.checked })}
+                        className="w-4 h-4 rounded"
+                      />
+                    </label>
+
+                    {(settings.dimEnabled ?? false) && (
+                      <>
+                        <div className="space-y-1">
+                          <span className="text-xs text-white/60">Dim style</span>
+                          <div className="flex gap-2 mt-1 flex-wrap">
+                            {(['partial', 'black', 'clock'] as const).map((m) => (
+                              <button
+                                key={m}
+                                onClick={() => save({ dimMode: m })}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
+                                  (settings.dimMode ?? 'partial') === m
+                                    ? 'bg-cyan-500/30 text-cyan-300 ring-1 ring-cyan-400/40'
+                                    : 'bg-white/5 text-white/50 hover:bg-white/10'
+                                }`}
+                              >
+                                {m === 'partial' ? 'Partial dim' : m === 'black' ? 'Full black' : 'Clock'}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {(settings.dimMode ?? 'partial') === 'partial' && (
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs text-white/60">
+                              <span>Dim opacity</span>
+                              <span>{settings.dimOpacity ?? 70}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={10}
+                              max={95}
+                              value={settings.dimOpacity ?? 70}
+                              onChange={(e) => save({ dimOpacity: parseInt(e.target.value) })}
+                              className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-white/10"
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  {/* Brightness service */}
+                  <div className="pt-2 border-t border-white/10 space-y-3">
+                    <label className="flex items-center justify-between gap-3 cursor-pointer">
+                      <span className="text-sm text-white/80">
+                        <Sun size={13} className="inline mr-1 opacity-60" />
+                        Real brightness control
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={settings.brightnessServiceEnabled ?? false}
+                        onChange={(e) => save({ brightnessServiceEnabled: e.target.checked })}
+                        className="w-4 h-4 rounded"
+                      />
+                    </label>
+
+                    {(settings.brightnessServiceEnabled ?? false) && (
+                      <>
+                        <p className="text-xs text-white/30">
+                          Requires the brightness service running on the Surface.
+                          Download and run install.bat once on the Surface device.
+                        </p>
+
+                        {/* Download buttons */}
+                        <div className="flex gap-2 flex-wrap">
+                          <a
+                            href="/brightness-service/install.bat"
+                            download="install.bat"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-500/20 text-green-300 hover:bg-green-500/30 transition-colors"
+                          >
+                            <Download size={12} />
+                            install.bat
+                          </a>
+                          <a
+                            href="/brightness-service/uninstall.bat"
+                            download="uninstall.bat"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors"
+                          >
+                            <Download size={12} />
+                            uninstall.bat
+                          </a>
+                        </div>
+
+                        <div className="flex gap-2 items-end">
+                          <div className="flex flex-col gap-1 flex-1">
+                            <span className="text-xs text-white/50">Service port</span>
+                            <input
+                              type="number"
+                              value={settings.brightnessServicePort ?? 3737}
+                              onChange={(e) => save({ brightnessServicePort: parseInt(e.target.value) || 3737 })}
+                              className="rounded-lg bg-white/10 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none w-full"
+                            />
+                          </div>
+                          <button
+                            onClick={async () => {
+                              setBrightnessTestStatus('idle');
+                              const result = await checkBrightnessService(settings.brightnessServicePort ?? 3737);
+                              setBrightnessTestStatus(result.ok ? 'ok' : 'fail');
+                              setTimeout(() => setBrightnessTestStatus('idle'), 4000);
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/20 transition-colors mb-0.5"
+                          >
+                            {brightnessTestStatus === 'ok' && <CheckCircle size={13} className="text-green-400" />}
+                            {brightnessTestStatus === 'fail' && <XCircle size={13} className="text-red-400" />}
+                            {brightnessTestStatus === 'idle' && null}
+                            Test
+                          </button>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs text-white/60">
+                              <span>Brightness when active</span>
+                              <span>{settings.brightnessOnPresence ?? 100}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={100}
+                              value={settings.brightnessOnPresence ?? 100}
+                              onChange={(e) => save({ brightnessOnPresence: parseInt(e.target.value) })}
+                              className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-white/10"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs text-white/60">
+                              <span>Brightness when idle</span>
+                              <span>{settings.brightnessOnIdle ?? 10}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={100}
+                              value={settings.brightnessOnIdle ?? 10}
+                              onChange={(e) => save({ brightnessOnIdle: parseInt(e.target.value) })}
+                              className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-white/10"
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </>
               )}
             </div>

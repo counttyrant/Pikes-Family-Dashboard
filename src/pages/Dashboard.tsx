@@ -8,7 +8,6 @@ import { Countdown } from '../components/widgets/Countdown'
 import { Chores } from '../components/widgets/Chores'
 import { TodoList } from '../components/widgets/TodoList'
 import { Notes } from '../components/widgets/Notes'
-import { DailyQuote } from '../components/widgets/DailyQuote'
 import { Activities } from '../components/widgets/Activities'
 import { RecipesWidget } from '../components/widgets/RecipesWidget'
 import { WidgetContainer } from '../components/widgets/WidgetContainer'
@@ -171,8 +170,6 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
         return <TodoList />
       case 'notes':
         return <Notes />
-      case 'quote':
-        return <DailyQuote />
       case 'activities':
         return <Activities />
       case 'recipes':

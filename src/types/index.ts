@@ -210,6 +210,14 @@ export interface DashboardSettings {
   presenceScheduleEnabled: boolean;
   presenceScheduleStart: string;      // HH:MM
   presenceScheduleEnd: string;        // HH:MM
+  presenceSource: 'camera' | 'microphone';
+  dimEnabled: boolean;
+  dimMode: 'partial' | 'black' | 'clock';
+  dimOpacity: number;               // 10–90, for partial mode
+  brightnessServiceEnabled: boolean;
+  brightnessServicePort: number;    // default 3737
+  brightnessOnPresence: number;     // 0–100
+  brightnessOnIdle: number;         // 0–100
 }
 
 /* ── Misc ─────────────────────────────────────────────────────────────── */

@@ -1,0 +1,9 @@
+{
+  "name": "pikes-brightness-service",
+  "version": "1.0.0",
+  "description": "Local service to control Surface display brightness for Pikes Family Dashboard",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

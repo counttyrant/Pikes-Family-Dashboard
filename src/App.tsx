@@ -17,12 +17,14 @@ import { AiAssistant } from './components/ai/AiAssistant'
 import { PhotoSlideshow } from './components/widgets/PhotoSlideshow'
 import type { PhotoSlideshowHandle } from './components/widgets/PhotoSlideshow'
 import { LoginScreen } from './components/auth/LoginScreen'
-import { CameraPresenceMonitor } from './components/presence/CameraPresenceMonitor'
+import { PresenceMonitor } from './components/presence/CameraPresenceMonitor'
+import { DimOverlay } from './components/presence/DimOverlay'
 import { useAuth } from './contexts/AuthContext'
 import { db } from './db'
 import { getSettings } from './services/storage'
 import { initCloudSync } from './services/cloudSync'
 import { removeFromImmichAlbum, toggleImmichFavorite } from './services/immich'
+import { setBrightness } from './services/brightnessService'
 import type { DashboardSettings } from './types'
 import { Maximize, Minimize, Settings, ChevronLeft, ChevronRight, ImagePlay, X, Home, Trash2, Shuffle, Heart } from 'lucide-react'
 import { ALL_PAGES, DEFAULT_PAGE_ORDER } from './constants/pages'
@@ -36,6 +38,7 @@ function AppContent() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isIdle, setIsIdle] = useState(false)
+  const [isDimmed, setIsDimmed] = useState(false)
   const [pictureMode, setPictureMode] = useState(false)
   const [settings, setSettings] = useState<DashboardSettings | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
@@ -235,16 +238,44 @@ function AppContent() {
 
   return (
     <div className={`h-screen w-screen overflow-hidden text-white ${nightClass} transition-all duration-500`}>
-      {/* Camera presence monitor — invisible, keeps screen awake on motion */}
+      {/* Presence monitor — invisible, keeps screen awake on motion */}
       {settings && (
-        <CameraPresenceMonitor settings={{
+        <PresenceMonitor settings={{
           presenceDetectionEnabled: settings.presenceDetectionEnabled ?? false,
           presenceSensitivity: settings.presenceSensitivity ?? 5,
           presenceInactivityTimeout: settings.presenceInactivityTimeout ?? 5,
           presenceScheduleEnabled: settings.presenceScheduleEnabled ?? false,
           presenceScheduleStart: settings.presenceScheduleStart ?? '07:00',
           presenceScheduleEnd: settings.presenceScheduleEnd ?? '22:00',
-        }} />
+          presenceSource: settings.presenceSource ?? 'camera',
+        }}
+        onDim={() => {
+          if (settings.dimEnabled) setIsDimmed(true);
+          if (settings.brightnessServiceEnabled) {
+            setBrightness(settings.brightnessOnIdle ?? 10, settings.brightnessServicePort ?? 3737);
+          }
+        }}
+        onUndim={() => {
+          setIsDimmed(false);
+          if (settings.brightnessServiceEnabled) {
+            setBrightness(settings.brightnessOnPresence ?? 100, settings.brightnessServicePort ?? 3737);
+          }
+        }}
+        />
+      )}
+
+      {/* Dim overlay — shown when idle, tap to dismiss */}
+      {isDimmed && settings && (
+        <DimOverlay
+          mode={settings.dimMode ?? 'partial'}
+          opacity={settings.dimOpacity ?? 70}
+          onDismiss={() => {
+            setIsDimmed(false);
+            if (settings.brightnessServiceEnabled) {
+              setBrightness(settings.brightnessOnPresence ?? 100, settings.brightnessServicePort ?? 3737);
+            }
+          }}
+        />
       )}
 
       {/* Screen saver overlay */}
@@ -390,7 +421,7 @@ function AppContent() {
             >
               <ChevronLeft size={18} />
             </button>
-            <div className="bg-black/40 backdrop-blur-sm rounded-full px-3 py-1.5 text-xs font-medium">
+            <div className="bg-black/40 backdrop-blur-sm rounded-full px-3 py-1.5 text-xs font-medium w-24 text-center truncate">
               {pageLabels[activeIndex] || ''}
             </div>
             <button

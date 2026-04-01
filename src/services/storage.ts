@@ -66,6 +66,14 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   presenceScheduleEnabled: false,
   presenceScheduleStart: '07:00',
   presenceScheduleEnd: '22:00',
+  presenceSource: 'camera',
+  dimEnabled: false,
+  dimMode: 'partial',
+  dimOpacity: 70,
+  brightnessServiceEnabled: false,
+  brightnessServicePort: 3737,
+  brightnessOnPresence: 100,
+  brightnessOnIdle: 10,
 };
 
 export async function getSettings(): Promise<DashboardSettings> {
