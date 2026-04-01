@@ -1293,25 +1293,20 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                           Download and run install.bat once on the Surface device.
                         </p>
 
-                        {/* Download buttons */}
+                        {/* Download button */}
                         <div className="flex gap-2 flex-wrap">
                           <a
-                            href="/brightness-service/install.bat"
-                            download="install.bat"
+                            href="/brightness-service/brightness-service.zip"
+                            download="brightness-service.zip"
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-500/20 text-green-300 hover:bg-green-500/30 transition-colors"
                           >
                             <Download size={12} />
-                            install.bat
-                          </a>
-                          <a
-                            href="/brightness-service/uninstall.bat"
-                            download="uninstall.bat"
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors"
-                          >
-                            <Download size={12} />
-                            uninstall.bat
+                            Download brightness-service.zip
                           </a>
                         </div>
+                        <p className="text-xs text-white/20">
+                          Extract the zip, then run install.bat — all files will be in the same folder.
+                        </p>
 
                         <div className="flex gap-2 items-end">
                           <div className="flex flex-col gap-1 flex-1">
