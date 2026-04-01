@@ -6,6 +6,7 @@ export interface GoogleUser {
   picture: string;
   accessToken: string;
   expiresAt: number;
+  tokenExpired?: boolean;
 }
 
 /* ── Family ───────────────────────────────────────────────────────────── */
@@ -203,6 +204,12 @@ export interface DashboardSettings {
   autoPictureMode: boolean; // auto-enter picture mode on idle
   autoPictureModeTimeout: number; // seconds before auto picture mode
   widgetBlur: Record<string, boolean>; // false = no blur for that widget
+  presenceDetectionEnabled: boolean;
+  presenceSensitivity: number;        // 1–10
+  presenceInactivityTimeout: number;  // minutes before releasing wake lock
+  presenceScheduleEnabled: boolean;
+  presenceScheduleStart: string;      // HH:MM
+  presenceScheduleEnd: string;        // HH:MM
 }
 
 /* ── Misc ─────────────────────────────────────────────────────────────── */

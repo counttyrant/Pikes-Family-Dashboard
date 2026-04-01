@@ -43,18 +43,19 @@ const GRID_CSS = `
 }
 .react-grid-item > .react-resizable-handle {
   position: absolute;
-  width: 20px;
-  height: 20px;
+  width: 44px;
+  height: 44px;
+  touch-action: none;
 }
 .react-grid-item > .react-resizable-handle::after {
   content: "";
   position: absolute;
-  right: 3px;
-  bottom: 3px;
-  width: 5px;
-  height: 5px;
-  border-right: 2px solid rgba(255, 255, 255, 0.4);
-  border-bottom: 2px solid rgba(255, 255, 255, 0.4);
+  right: 6px;
+  bottom: 6px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid rgba(255, 255, 255, 0.5);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.5);
 }
 .react-resizable-handle-se {
   bottom: 0;
@@ -66,6 +67,10 @@ const GRID_CSS = `
   border: 2px dashed rgba(59, 130, 246, 0.5);
   border-radius: 0.75rem;
   opacity: 1;
+}
+/* Prevent scroll/swipe interference when dragging widgets */
+.rgl-edit-mode .react-grid-item {
+  touch-action: none;
 }
 `;
 
@@ -127,7 +132,7 @@ export default function DraggableGrid({
   return (
     <div
       ref={containerRef}
-      className={`relative ${editMode ? 'ring-2 ring-blue-500/30 ring-inset rounded-xl' : ''}`}
+      className={`relative no-swipe ${editMode ? 'rgl-edit-mode ring-2 ring-blue-500/30 ring-inset rounded-xl' : ''}`}
     >
       {editMode && (
         <div className="absolute top-2 left-2 z-20 bg-blue-600/80 text-white text-xs font-medium px-2 py-1 rounded-md backdrop-blur-sm pointer-events-none">

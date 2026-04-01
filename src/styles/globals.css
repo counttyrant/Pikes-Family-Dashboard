@@ -14,6 +14,21 @@ body { transition: background-color 0.5s ease, color 0.5s ease; }
 /* Touch-friendly tap targets */
 button, [role="button"], input, select { min-height: 44px; min-width: 44px; }
 
+/* Reduce 300ms tap delay on tablet/touch devices */
+a, button, [role="button"], input, select, label { touch-action: manipulation; }
+
+/* Prevent touch interference on resize handles */
+.react-grid-item > .react-resizable-handle { touch-action: none; }
+
+/* Larger resize handles in edit mode */
+.rgl-edit-mode .react-grid-item > .react-resizable-handle {
+  width: 44px;
+  height: 44px;
+}
+.rgl-edit-mode .react-grid-item {
+  touch-action: none;
+}
+
 /* react-grid-layout styles */
 .react-grid-layout {
   position: relative;

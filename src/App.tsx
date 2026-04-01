@@ -17,6 +17,7 @@ import { AiAssistant } from './components/ai/AiAssistant'
 import { PhotoSlideshow } from './components/widgets/PhotoSlideshow'
 import type { PhotoSlideshowHandle } from './components/widgets/PhotoSlideshow'
 import { LoginScreen } from './components/auth/LoginScreen'
+import { CameraPresenceMonitor } from './components/presence/CameraPresenceMonitor'
 import { useAuth } from './contexts/AuthContext'
 import { db } from './db'
 import { getSettings } from './services/storage'
@@ -234,6 +235,18 @@ function AppContent() {
 
   return (
     <div className={`h-screen w-screen overflow-hidden text-white ${nightClass} transition-all duration-500`}>
+      {/* Camera presence monitor — invisible, keeps screen awake on motion */}
+      {settings && (
+        <CameraPresenceMonitor settings={{
+          presenceDetectionEnabled: settings.presenceDetectionEnabled ?? false,
+          presenceSensitivity: settings.presenceSensitivity ?? 5,
+          presenceInactivityTimeout: settings.presenceInactivityTimeout ?? 5,
+          presenceScheduleEnabled: settings.presenceScheduleEnabled ?? false,
+          presenceScheduleStart: settings.presenceScheduleStart ?? '07:00',
+          presenceScheduleEnd: settings.presenceScheduleEnd ?? '22:00',
+        }} />
+      )}
+
       {/* Screen saver overlay */}
       {isIdle && !pictureMode && (
         <div
@@ -350,6 +363,7 @@ function AppContent() {
             touchRatio={1.5}
             resistance={true}
             resistanceRatio={0.85}
+            noSwipingSelector=".no-swipe"
             onSwiper={(sw) => { swiperRef.current = sw }}
             onSlideChange={(sw) => setActiveIndex(sw.realIndex)}
           >

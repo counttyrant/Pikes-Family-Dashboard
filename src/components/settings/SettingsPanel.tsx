@@ -1097,6 +1097,103 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
             </div>
           </Section>
 
+          {/* ---- Presence & Wake ---- */}
+          <Section title="Presence & Wake" icon={<Camera size={16} className="text-cyan-400" />}>
+            <p className="text-xs text-white/40 mb-3">
+              Uses the front camera to detect motion and keep the screen awake. Releases the wake lock after the inactivity timeout.
+            </p>
+            <div className="space-y-3">
+              {/* Master toggle */}
+              <label className="flex items-center justify-between gap-3 cursor-pointer">
+                <span className="text-sm text-white/80">Enable presence detection</span>
+                <input
+                  type="checkbox"
+                  checked={settings.presenceDetectionEnabled ?? false}
+                  onChange={(e) => save({ presenceDetectionEnabled: e.target.checked })}
+                  className="w-4 h-4 rounded"
+                />
+              </label>
+
+              {(settings.presenceDetectionEnabled ?? false) && (
+                <>
+                  {/* Sensitivity */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-white/60">
+                      <span>Sensitivity</span>
+                      <span>{settings.presenceSensitivity ?? 5} / 10</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={1}
+                      max={10}
+                      value={settings.presenceSensitivity ?? 5}
+                      onChange={(e) => save({ presenceSensitivity: parseInt(e.target.value) })}
+                      className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-white/10"
+                    />
+                    <div className="flex justify-between text-xs text-white/30">
+                      <span>Very sensitive</span>
+                      <span>Large motion only</span>
+                    </div>
+                  </div>
+
+                  {/* Inactivity timeout */}
+                  <div className="space-y-1">
+                    <span className="text-xs text-white/60">Release wake lock after (minutes of no motion)</span>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {[1, 2, 5, 10, 15].map((mins) => (
+                        <button
+                          key={mins}
+                          onClick={() => save({ presenceInactivityTimeout: mins })}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                            (settings.presenceInactivityTimeout ?? 5) === mins
+                              ? 'bg-cyan-500/30 text-cyan-300 ring-1 ring-cyan-400/40'
+                              : 'bg-white/5 text-white/50 hover:bg-white/10'
+                          }`}
+                        >
+                          {mins} min
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Schedule */}
+                  <label className="flex items-center justify-between gap-3 cursor-pointer">
+                    <span className="text-sm text-white/80">Limit to schedule</span>
+                    <input
+                      type="checkbox"
+                      checked={settings.presenceScheduleEnabled ?? false}
+                      onChange={(e) => save({ presenceScheduleEnabled: e.target.checked })}
+                      className="w-4 h-4 rounded"
+                    />
+                  </label>
+
+                  {(settings.presenceScheduleEnabled ?? false) && (
+                    <div className="flex gap-3 items-center">
+                      <div className="flex flex-col gap-1 flex-1">
+                        <span className="text-xs text-white/50">Start</span>
+                        <input
+                          type="time"
+                          value={settings.presenceScheduleStart ?? '07:00'}
+                          onChange={(e) => save({ presenceScheduleStart: e.target.value })}
+                          className="rounded-lg bg-white/10 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1 flex-1">
+                        <span className="text-xs text-white/50">End</span>
+                        <input
+                          type="time"
+                          value={settings.presenceScheduleEnd ?? '22:00'}
+                          onChange={(e) => save({ presenceScheduleEnd: e.target.value })}
+                          className="rounded-lg bg-white/10 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </Section>
+
           {/* ---- Access Control ---- */}
           <Section title="Access Control" icon={<Shield size={16} className="text-yellow-400" />}>
             <p className="text-xs text-white/40 mb-2">

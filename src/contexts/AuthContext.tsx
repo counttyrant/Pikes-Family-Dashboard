@@ -38,6 +38,7 @@ const USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo';
 interface AuthContextValue {
   user: GoogleUser | null;
   isLoading: boolean;
+  sessionExpired: boolean;
   signIn: () => Promise<void>;
   signOut: () => void;
   accessToken: string | null;
@@ -104,9 +105,32 @@ function isEmailAllowed(email: string, allowed: string[]): boolean {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<GoogleUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tokenClientRef = useRef<any>(null);
   const gisReady = useRef(false);
+  const proactiveRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Schedule proactive refresh ~5 min before token expiry ─────────────
+
+  const scheduleProactiveRefresh = useCallback((expiresAt: number) => {
+    if (proactiveRefreshTimer.current) clearTimeout(proactiveRefreshTimer.current);
+    const msUntilRefresh = expiresAt - Date.now() - 5 * 60 * 1000;
+    if (msUntilRefresh <= 0) return;
+    proactiveRefreshTimer.current = setTimeout(async () => {
+      try {
+        const refreshed = await silentRefresh();
+        if (refreshed) {
+          setUser(refreshed);
+          setSessionExpired(false);
+          scheduleProactiveRefresh(refreshed.expiresAt);
+        }
+      } catch {
+        // Proactive refresh failed silently — user will see reconnect UI when they next interact
+      }
+    }, msUntilRefresh);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Initialise GIS & attempt restore ──────────────────────────────────
 
@@ -125,6 +149,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           callback: () => {
             /* overridden per-request */
           },
+          error_callback: () => {
+            /* overridden per-request */
+          },
         });
 
         gisReady.current = true;
@@ -134,15 +161,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (stored) {
           if (stored.expiresAt > Date.now()) {
             // Token still valid
-            if (!cancelled) setUser(stored);
+            if (!cancelled) {
+              setUser(stored);
+              scheduleProactiveRefresh(stored.expiresAt);
+            }
           } else {
-            // Try silent refresh
+            // Try silent refresh (prompt: 'none' = no UI, fail fast)
             try {
               const refreshed = await silentRefresh();
-              if (!cancelled && refreshed) setUser(refreshed);
+              if (!cancelled && refreshed) {
+                setUser(refreshed);
+                setSessionExpired(false);
+                scheduleProactiveRefresh(refreshed.expiresAt);
+              }
             } catch {
-              // Silent refresh failed – user will need to sign in again
-              await clearAuthUser();
+              // Silent refresh failed — keep profile in IndexedDB, show reconnect UI
+              if (!cancelled) {
+                setUser({ ...stored, tokenExpired: true });
+                setSessionExpired(true);
+              }
             }
           }
         }
@@ -156,6 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     init();
     return () => {
       cancelled = true;
+      if (proactiveRefreshTimer.current) clearTimeout(proactiveRefreshTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -202,7 +240,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       };
 
-      client.requestAccessToken({ prompt: '' });
+      // Override error_callback so the promise rejects immediately on failure
+      client.error_callback = (err: any) => {
+        reject(new Error(err?.type ?? 'silent_refresh_failed'));
+      };
+
+      // prompt: 'none' = truly silent, no UI shown; fails fast if no active Google session
+      client.requestAccessToken({ prompt: 'none' });
     });
   }, []);
 
@@ -245,19 +289,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           await saveAuthUser(newUser);
           setUser(newUser);
+          setSessionExpired(false);
+          scheduleProactiveRefresh(newUser.expiresAt);
           resolve();
         } catch (err) {
           reject(err);
         }
       };
 
-      client.requestAccessToken({ prompt: 'consent' });
+      client.requestAccessToken({ prompt: 'select_account' });
     });
   }, []);
 
   // ── Sign out ──────────────────────────────────────────────────────────
 
   const handleSignOut = useCallback(() => {
+    if (proactiveRefreshTimer.current) clearTimeout(proactiveRefreshTimer.current);
     if (user?.accessToken) {
       const g = window.google as any;
       g?.accounts?.oauth2?.revoke(user.accessToken, () => {});
@@ -265,6 +312,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearAuthUser();
     saveSettings({ googleToken: null });
     setUser(null);
+    setSessionExpired(false);
   }, [user]);
 
   // ── Context value ─────────────────────────────────────────────────────
@@ -273,11 +321,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user,
       isLoading,
+      sessionExpired,
       signIn,
       signOut: handleSignOut,
       accessToken: user?.accessToken ?? null,
     }),
-    [user, isLoading, signIn, handleSignOut],
+    [user, isLoading, sessionExpired, signIn, handleSignOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

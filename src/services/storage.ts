@@ -60,6 +60,12 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   autoPictureMode: true,
   autoPictureModeTimeout: 300,
   widgetBlur: {},
+  presenceDetectionEnabled: false,
+  presenceSensitivity: 5,
+  presenceInactivityTimeout: 5,
+  presenceScheduleEnabled: false,
+  presenceScheduleStart: '07:00',
+  presenceScheduleEnd: '22:00',
 };
 
 export async function getSettings(): Promise<DashboardSettings> {
