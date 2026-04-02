@@ -3,23 +3,16 @@ import { useAuth } from '../../contexts/AuthContext';
 
 export function LoginScreen() {
   const { isLoading, signIn, sessionExpired, user } = useAuth();
-  const [error, setError] = useState<string | null>(null);
   const [signingIn, setSigningIn] = useState(false);
+  const [authError] = useState<string | null>(() => {
+    // Check for error passed back from OAuth callback via URL
+    const params = new URLSearchParams(window.location.search);
+    return params.get('auth') === 'error' ? (params.get('reason') ?? 'Sign-in failed') : null;
+  });
 
   const handleSignIn = async () => {
-    setError(null);
     setSigningIn(true);
-    try {
-      await signIn();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Sign-in failed. Please try again.',
-      );
-    } finally {
-      setSigningIn(false);
-    }
+    await signIn(); // navigates away — never returns
   };
 
   const showSpinner = isLoading || signingIn;
@@ -74,8 +67,8 @@ export function LoginScreen() {
             )}
           </button>
 
-          {error && (
-            <p className="mt-4 text-center text-sm text-red-400" role="alert">{error}</p>
+          {authError && (
+            <p className="mt-4 text-center text-sm text-red-400" role="alert">{authError}</p>
           )}
         </div>
       ) : (
@@ -150,9 +143,9 @@ export function LoginScreen() {
           </button>
 
           {/* Error message */}
-          {error && (
+          {authError && (
             <p className="mt-4 text-center text-sm text-red-400" role="alert">
-              {error}
+              {authError}
             </p>
           )}
         </div>

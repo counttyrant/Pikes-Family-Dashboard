@@ -12,24 +12,16 @@ import {
   getAuthUser,
   saveAuthUser,
   clearAuthUser,
-  getSettings,
   saveSettings,
 } from '../services/storage';
 
 // ---------------------------------------------------------------------------
-// Constants
+// API endpoints (Azure Functions)
 // ---------------------------------------------------------------------------
 
-const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string;
-const SCOPES = [
-  'openid',
-  'profile',
-  'email',
-  'https://www.googleapis.com/auth/calendar',
-  'https://www.googleapis.com/auth/photoslibrary.readonly',
-].join(' ');
-const GIS_SCRIPT = 'https://accounts.google.com/gsi/client';
-const USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo';
+const TOKEN_API = '/api/auth/token';
+const LOGOUT_API = '/api/auth/logout';
+const START_API = '/api/auth/start';
 
 // ---------------------------------------------------------------------------
 // Context shape
@@ -47,55 +39,22 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 // ---------------------------------------------------------------------------
-// Helpers
+// API response type
 // ---------------------------------------------------------------------------
 
-function loadGisScript(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${GIS_SCRIPT}"]`)) {
-      resolve();
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = GIS_SCRIPT;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Failed to load GIS script'));
-    document.head.appendChild(script);
-  });
+interface TokenApiResponse {
+  accessToken: string;
+  expiresAt: number;
+  email: string;
+  name: string;
+  picture: string;
 }
 
-function waitForGis(): Promise<void> {
-  return new Promise((resolve) => {
-    const check = () => {
-      if (window.google?.accounts?.oauth2) {
-        resolve();
-      } else {
-        setTimeout(check, 100);
-      }
-    };
-    check();
-  });
-}
-
-async function getAllowedEmails(): Promise<string[]> {
-  // Env-var list takes priority
-  const envList = (import.meta.env.VITE_ALLOWED_EMAILS as string) ?? '';
-  if (envList.trim()) {
-    return envList
-      .split(',')
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean);
-  }
-  // Fall back to stored settings
-  const settings = await getSettings();
-  return (settings.allowedEmails ?? []).map((e) => e.toLowerCase());
-}
-
-function isEmailAllowed(email: string, allowed: string[]): boolean {
-  if (allowed.length === 0) return true;
-  return allowed.includes(email.toLowerCase());
+async function fetchTokenFromApi(): Promise<TokenApiResponse | null> {
+  const response = await fetch(TOKEN_API, { cache: 'no-store' });
+  if (response.status === 401) return null;
+  if (!response.ok) throw new Error(`Auth API error: ${response.status}`);
+  return response.json() as Promise<TokenApiResponse>;
 }
 
 // ---------------------------------------------------------------------------
@@ -106,163 +65,90 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<GoogleUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const tokenClientRef = useRef<any>(null);
-  const gisReady = useRef(false);
-  const proactiveRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const autoRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Silent token refresh (defined early so scheduleProactiveRefresh can use it) ──
+  // ── Schedule proactive token fetch ~5 min before expiry ──────────────
 
-  const silentRefresh = useCallback((): Promise<GoogleUser | null> => {
-    return new Promise((resolve, reject) => {
-      const client = tokenClientRef.current;
-      if (!client) {
-        reject(new Error('Token client not initialised'));
-        return;
-      }
-
-      client.callback = async (response: any) => {
-        if (response.error) {
-          reject(new Error(response.error));
-          return;
-        }
-
-        try {
-          const profile = await fetch(USERINFO_URL, {
-            headers: { Authorization: `Bearer ${response.access_token}` },
-          }).then((r) => r.json());
-
-          const allowed = await getAllowedEmails();
-          if (!isEmailAllowed(profile.email, allowed)) {
-            reject(new Error('Email not in the allowed list'));
-            return;
-          }
-
-          const refreshedUser: GoogleUser = {
-            email: profile.email,
-            name: profile.name,
-            picture: profile.picture,
-            accessToken: response.access_token,
-            expiresAt: Date.now() + 3600 * 1000,
-          };
-
-          await saveAuthUser(refreshedUser);
-          resolve(refreshedUser);
-        } catch (err) {
-          reject(err);
-        }
-      };
-
-      // Override error_callback so the promise rejects immediately on failure
-      client.error_callback = (err: any) => {
-        reject(new Error(err?.type ?? 'silent_refresh_failed'));
-      };
-
-      // prompt: 'none' = truly silent, no UI shown; fails fast if no active Google session
-      client.requestAccessToken({ prompt: 'none' });
-    });
-  }, []);
-
-  // ── Auto-retry silent refresh when session is expired ─────────────────
-  // Tries every 60s automatically — succeeds silently if the browser still
-  // has an active Google session (common on a dedicated kiosk tablet).
-
-  const scheduleAutoRetry = useCallback(() => {
-    if (autoRetryTimer.current) clearTimeout(autoRetryTimer.current);
-    autoRetryTimer.current = setTimeout(async () => {
-      try {
-        const refreshed = await silentRefresh();
-        if (refreshed) {
-          setUser(refreshed);
-          setSessionExpired(false);
-          scheduleProactiveRefresh(refreshed.expiresAt);
-        } else {
-          scheduleAutoRetry(); // keep trying
-        }
-      } catch {
-        scheduleAutoRetry(); // keep trying
-      }
-    }, 60_000);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [silentRefresh]);
-
-  // ── Schedule proactive refresh ~5 min before token expiry ─────────────
-
-  const scheduleProactiveRefresh = useCallback((expiresAt: number) => {
-    if (proactiveRefreshTimer.current) clearTimeout(proactiveRefreshTimer.current);
+  const scheduleRefresh = useCallback((expiresAt: number) => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
     const msUntilRefresh = expiresAt - Date.now() - 5 * 60 * 1000;
     if (msUntilRefresh <= 0) return;
-    proactiveRefreshTimer.current = setTimeout(async () => {
+
+    refreshTimer.current = setTimeout(async () => {
       try {
-        const refreshed = await silentRefresh();
-        if (refreshed) {
-          setUser(refreshed);
+        const data = await fetchTokenFromApi();
+        if (data) {
+          setAccessToken(data.accessToken);
           setSessionExpired(false);
-          scheduleProactiveRefresh(refreshed.expiresAt);
+          scheduleRefresh(data.expiresAt);
+          // Keep IndexedDB profile fresh
+          await saveAuthUser({
+            email: data.email,
+            name: data.name,
+            picture: data.picture,
+            accessToken: data.accessToken,
+            expiresAt: data.expiresAt,
+          });
+        } else {
+          setSessionExpired(true);
+          setAccessToken(null);
         }
       } catch {
-        // Silent refresh failed — start auto-retry loop in background
-        scheduleAutoRetry();
+        // Network error — keep current token, retry on next schedule
       }
     }, msUntilRefresh);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [silentRefresh, scheduleAutoRetry]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Initialise GIS & attempt restore ──────────────────────────────────
+  // ── Initialise: call backend token API ────────────────────────────────
 
   useEffect(() => {
     let cancelled = false;
 
     async function init() {
+      // Handle redirect back from Google OAuth — clean the URL
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('auth')) {
+        window.history.replaceState({}, '', '/');
+      }
+
       try {
-        await loadGisScript();
-        await waitForGis();
+        const data = await fetchTokenFromApi();
 
-        const g = window.google as any;
-        tokenClientRef.current = g.accounts.oauth2.initTokenClient({
-          client_id: CLIENT_ID,
-          scope: SCOPES,
-          callback: () => {
-            /* overridden per-request */
-          },
-          error_callback: () => {
-            /* overridden per-request */
-          },
-        });
-
-        gisReady.current = true;
-
-        // Try restoring a previous session from IndexedDB
-        const stored = await getAuthUser();
-        if (stored) {
-          if (stored.expiresAt > Date.now()) {
-            // Token still valid
-            if (!cancelled) {
-              setUser(stored);
-              scheduleProactiveRefresh(stored.expiresAt);
-            }
+        if (!cancelled) {
+          if (data) {
+            const googleUser: GoogleUser = {
+              email: data.email,
+              name: data.name,
+              picture: data.picture,
+              accessToken: data.accessToken,
+              expiresAt: data.expiresAt,
+            };
+            setUser(googleUser);
+            setAccessToken(data.accessToken);
+            setSessionExpired(false);
+            scheduleRefresh(data.expiresAt);
+            // Cache profile in IndexedDB for instant display on next load
+            await saveAuthUser(googleUser);
           } else {
-            // Try silent refresh immediately on load
-            try {
-              const refreshed = await silentRefresh();
-              if (!cancelled && refreshed) {
-                setUser(refreshed);
-                setSessionExpired(false);
-                scheduleProactiveRefresh(refreshed.expiresAt);
-              }
-            } catch {
-              // Silent refresh failed — keep profile visible, start auto-retry
-              if (!cancelled) {
-                setUser({ ...stored, tokenExpired: true });
-                setSessionExpired(true);
-                scheduleAutoRetry();
-              }
+            // Not authenticated — show cached profile while on login screen
+            const stored = await getAuthUser();
+            if (stored) {
+              setUser({ ...stored, tokenExpired: true });
+              setSessionExpired(true);
             }
           }
         }
       } catch (err) {
         console.error('Auth init failed:', err);
+        // Network failure — show cached profile if available
+        if (!cancelled) {
+          const stored = await getAuthUser();
+          if (stored) {
+            setUser({ ...stored, tokenExpired: true });
+            setSessionExpired(true);
+          }
+        }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -271,78 +157,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     init();
     return () => {
       cancelled = true;
-      if (proactiveRefreshTimer.current) clearTimeout(proactiveRefreshTimer.current);
-      if (autoRetryTimer.current) clearTimeout(autoRetryTimer.current);
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Sign in (interactive) ─────────────────────────────────────────────
+  // ── Sign in: redirect to backend OAuth start ──────────────────────────
 
   const signIn = useCallback(async (): Promise<void> => {
-    if (!gisReady.current || !tokenClientRef.current) {
-      throw new Error('Google auth not ready');
-    }
-
-    return new Promise<void>((resolve, reject) => {
-      const client = tokenClientRef.current!;
-
-      client.callback = async (response: any) => {
-        if (response.error) {
-          reject(new Error(response.error));
-          return;
-        }
-
-        try {
-          const profile = await fetch(USERINFO_URL, {
-            headers: { Authorization: `Bearer ${response.access_token}` },
-          }).then((r) => r.json());
-
-          const allowed = await getAllowedEmails();
-          if (!isEmailAllowed(profile.email, allowed)) {
-            const g = window.google as any;
-            g?.accounts?.oauth2?.revoke(response.access_token, () => {});
-            reject(new Error('Email not in the allowed list'));
-            return;
-          }
-
-          const newUser: GoogleUser = {
-            email: profile.email,
-            name: profile.name,
-            picture: profile.picture,
-            accessToken: response.access_token,
-            expiresAt: Date.now() + 3600 * 1000,
-          };
-
-          await saveAuthUser(newUser);
-          if (autoRetryTimer.current) clearTimeout(autoRetryTimer.current);
-          setUser(newUser);
-          setSessionExpired(false);
-          scheduleProactiveRefresh(newUser.expiresAt);
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      };
-
-      client.requestAccessToken({ prompt: 'select_account' });
-    });
+    // Navigating away — this promise intentionally never resolves in this context
+    window.location.href = START_API;
+    return new Promise(() => {});
   }, []);
 
   // ── Sign out ──────────────────────────────────────────────────────────
 
-  const handleSignOut = useCallback(() => {
-    if (proactiveRefreshTimer.current) clearTimeout(proactiveRefreshTimer.current);
-    if (autoRetryTimer.current) clearTimeout(autoRetryTimer.current);
-    if (user?.accessToken) {
-      const g = window.google as any;
-      g?.accounts?.oauth2?.revoke(user.accessToken, () => {});
+  const handleSignOut = useCallback(async () => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    try {
+      await fetch(LOGOUT_API, { method: 'POST' });
+    } catch {
+      // best effort
     }
-    clearAuthUser();
-    saveSettings({ googleToken: null });
+    await clearAuthUser();
+    await saveSettings({ googleToken: null });
     setUser(null);
+    setAccessToken(null);
     setSessionExpired(false);
-  }, [user]);
+  }, []);
 
   // ── Context value ─────────────────────────────────────────────────────
 
@@ -353,10 +194,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sessionExpired,
       signIn,
       signOut: handleSignOut,
-      // Return null when token is expired so API calls won't fire with a stale token
-      accessToken: (user && !user.tokenExpired) ? user.accessToken : null,
+      accessToken,
     }),
-    [user, isLoading, sessionExpired, signIn, handleSignOut],
+    [user, isLoading, sessionExpired, signIn, handleSignOut, accessToken],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

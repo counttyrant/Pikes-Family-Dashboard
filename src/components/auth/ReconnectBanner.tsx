@@ -5,18 +5,10 @@ import { useAuth } from '../../contexts/AuthContext';
 export function ReconnectBanner() {
   const { signIn, user } = useAuth();
   const [signing, setSigning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const handleReconnect = async () => {
-    setError(null);
     setSigning(true);
-    try {
-      await signIn();
-    } catch {
-      setError('Could not reconnect — tap to try again');
-    } finally {
-      setSigning(false);
-    }
+    await signIn(); // navigates away
   };
 
   return (
@@ -31,11 +23,7 @@ export function ReconnectBanner() {
 
       <div className="flex flex-col min-w-0">
         <span className="text-xs font-semibold text-white leading-tight">Session expired</span>
-        {error ? (
-          <span className="text-[0.65rem] text-red-400 leading-tight">{error}</span>
-        ) : (
-          <span className="text-[0.65rem] text-white/50 leading-tight">Retrying automatically…</span>
-        )}
+        <span className="text-[0.65rem] text-white/50 leading-tight">Tap to sign in again</span>
       </div>
 
       <button
@@ -44,7 +32,7 @@ export function ReconnectBanner() {
         className="flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white transition-colors disabled:opacity-60 disabled:pointer-events-none shrink-0"
       >
         <RefreshCw size={12} className={signing ? 'animate-spin' : ''} />
-        {signing ? 'Reconnecting…' : 'Reconnect'}
+        {signing ? 'Redirecting…' : 'Sign in'}
       </button>
     </div>
   );
