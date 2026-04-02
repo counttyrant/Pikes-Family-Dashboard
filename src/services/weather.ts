@@ -111,10 +111,22 @@ export async function fetchWeather(
         // Use noon entry for icon/description if available; otherwise use afternoon midpoint
         const repDesc = day.noonEntry?.description ?? day.descriptions[Math.floor(day.descriptions.length * 0.6)];
         const repIcon = day.noonEntry?.icon ?? day.icons[Math.floor(day.icons.length * 0.6)];
+
+        // For today, use the current-weather endpoint's daily min/max — these reflect
+        // the full model-day forecast and match what the OWM website displays.
+        // The /forecast endpoint only returns future 3-hour slots, so by mid-morning
+        // the overnight/morning highs are already missing from the list.
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const useCurrentMinMax = date === todayStr;
+
         return {
           date,
-          tempMin: Math.round(Math.min(...day.temps)),
-          tempMax: Math.round(Math.max(...day.temps)),
+          tempMin: useCurrentMinMax
+            ? Math.round(currentData.main.temp_min)
+            : Math.round(Math.min(...day.temps)),
+          tempMax: useCurrentMinMax
+            ? Math.round(currentData.main.temp_max)
+            : Math.round(Math.max(...day.temps)),
           description: repDesc,
           icon: repIcon,
           humidity: Math.round(day.humidities.reduce((a, b) => a + b, 0) / day.humidities.length),
