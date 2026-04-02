@@ -158,17 +158,26 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
   // For local photos, use the asynchronously resolved blob URL; for remote, use directly.
   const displayUrl = photoSource === 'local' ? resolvedDisplayUrl : (urls.length > 0 ? urls[safeIdx] : null);
 
-  // Reset index when photo list source/length changes
+  // Reset index when the actual photo source/count changes.
+  // NOTE: localPhotoIds?.length intentionally excluded from deps for Immich users
+  // who also have local photos — that spurious reset would blank the screen briefly
+  // every time the DB query resolves.
   useEffect(() => {
     const len = photoSource === 'local' ? (localPhotoIds?.length ?? 0) : remoteUrls.length;
     setCurrentIdx(len > 1 ? Math.floor(Math.random() * len) : 0);
     setInitialLoaded(false);
     setResolvedDisplayUrl(null);
-  }, [remoteUrls.length, localPhotoIds?.length, photoSource]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remoteUrls.length, photoSource]);
 
-  // Preload the initial image(s)
+  // Preload the initial image(s).
+  // For remote sources (immich/google/unsplash), skip preloading the DEFAULT_PHOTO_URLS
+  // fallback — wait until actual remoteUrls are available so we don't flash Unsplash.
   useEffect(() => {
     if (initialLoaded || urls.length === 0) return;
+    // If this is a remote source but remoteUrls haven't loaded yet (we're showing
+    // DEFAULT_PHOTO_URLS as a placeholder), don't preload — wait for the real URLs.
+    if (photoSource !== 'local' && remoteUrls.length === 0) return;
     let cancelled = false;
 
     if (photoSource === 'local') {
@@ -190,7 +199,7 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
     }
 
     return () => { cancelled = true; };
-  }, [initialLoaded, urls.length, currentIdx, safeIdx, photoSource, getLocalBlobUrl]);
+  }, [initialLoaded, urls.length, remoteUrls.length, currentIdx, safeIdx, photoSource, getLocalBlobUrl]);
 
   // Transition to a specific index
   const transitionTo = useCallback(async (targetIdx: number) => {

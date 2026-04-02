@@ -168,14 +168,20 @@ export async function fetchWeather(
           };
         }
 
-        // Fallback: compute from 3-hour slots (may miss overnight/morning extremes)
+        // Fallback: compute from 3-hour slots (may miss overnight/morning extremes).
+        // Include the current observed temperature so the hi/lo is at least bounded
+        // by what's actually happening outside right now.
         const repDesc = day.noonEntry?.description ?? day.descriptions[Math.floor(day.descriptions.length * 0.6)];
         const repIcon = day.noonEntry?.icon ?? day.icons[Math.floor(day.icons.length * 0.6)];
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const temps = date === todayStr
+          ? [...day.temps, Math.round(current.temp)]   // include live reading for today
+          : day.temps;
 
         return {
           date,
-          tempMin: Math.round(Math.min(...day.temps)),
-          tempMax: Math.round(Math.max(...day.temps)),
+          tempMin: Math.round(Math.min(...temps)),
+          tempMax: Math.round(Math.max(...temps)),
           description: repDesc,
           icon: repIcon,
           humidity: Math.round(day.humidities.reduce((a, b) => a + b, 0) / day.humidities.length),

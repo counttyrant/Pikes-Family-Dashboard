@@ -417,7 +417,7 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
           return { ...l, minW: def?.minW ?? 2, minH: def?.minH ?? 2 }
         })}
         gridConfig={{ cols: 12, rowHeight: 80, margin: [16, 16] }}
-        dragConfig={{ enabled: editMode, cancel: 'input, textarea, select, button, a, [role="button"]' }}
+        dragConfig={{ enabled: editMode, handle: '.drag-handle', cancel: 'button' }}
         resizeConfig={{ enabled: editMode, handles: ['se', 'sw', 'ne', 'nw'] }}
         compactor={noCompactor}
         autoSize={true}
