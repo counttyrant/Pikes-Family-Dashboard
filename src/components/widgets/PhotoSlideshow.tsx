@@ -339,26 +339,28 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
 
       {displayUrl && initialLoaded && (
         <div
-          className="absolute inset-0 bg-center transition-opacity"
+          className="absolute inset-0 bg-center"
           style={{
             backgroundImage: `url(${displayUrl})`,
             backgroundSize: bgSize,
             backgroundRepeat: bgRepeat,
             opacity: transitioning ? 0 : 1,
-            transitionDuration: `${TRANSITION_MS}ms`,
+            // Fade OUT when transitioning starts; snap back to 1 instantly when done
+            // so there's no gap between nextUrl disappearing and this layer being visible.
+            transition: transitioning ? `opacity ${TRANSITION_MS}ms ease-in-out` : 'none',
           }}
         />
       )}
 
       {nextUrl && (
         <div
-          className="absolute inset-0 bg-center transition-opacity"
+          className="absolute inset-0 bg-center"
           style={{
             backgroundImage: `url(${nextUrl})`,
             backgroundSize: bgSize,
             backgroundRepeat: bgRepeat,
             opacity: transitioning ? 1 : 0,
-            transitionDuration: `${TRANSITION_MS}ms`,
+            transition: `opacity ${TRANSITION_MS}ms ease-in-out`,
           }}
         />
       )}

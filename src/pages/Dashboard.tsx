@@ -196,7 +196,7 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
     return (
       <div
         ref={containerRef}
-        className="min-h-full w-full px-3 pt-14 pb-20 relative overflow-y-auto swiper-no-swiping"
+        className="min-h-full w-full px-3 pt-14 pb-20 relative overflow-y-auto no-swipe"
         style={{ height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}
       >
         {/* Mobile edit controls — compact top bar */}
@@ -308,7 +308,7 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
   return (
     <div
       ref={containerRef}
-      className={`h-full w-full p-4 pt-16 relative ${editMode ? 'swiper-no-swiping rgl-edit-mode' : ''}`}
+      className={`h-full w-full p-4 pt-16 relative ${editMode ? 'no-swipe rgl-edit-mode' : ''}`}
     >
       {/* Edit mode controls */}
       <div className="fixed top-4 left-4 z-40 flex items-center gap-2">
