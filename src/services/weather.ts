@@ -32,8 +32,11 @@ export async function fetchWeather(
     let query = '';
     if (location.trim()) {
       const loc = location.trim();
-      // Detect zip code (US 5-digit or 5+4)
-      if (/^\d{5}(-\d{4})?$/.test(loc)) {
+      // Detect OpenWeatherMap city ID (4–7 digit number)
+      if (/^\d{4,7}$/.test(loc)) {
+        query = `id=${loc}`;
+      // Detect US zip code (5-digit or 5+4)
+      } else if (/^\d{5}(-\d{4})?$/.test(loc)) {
         query = `zip=${loc},US`;
       } else {
         query = `q=${encodeURIComponent(loc)}`;

@@ -23,7 +23,7 @@ import type {
 const DEFAULT_SETTINGS: DashboardSettings = {
   id: 'main',
   weatherApiKey: '',
-  weatherLocation: '',
+  weatherLocation: '5576859',
   googleToken: null,
   nightModeStart: '21:00',
   nightModeEnd: '06:00',

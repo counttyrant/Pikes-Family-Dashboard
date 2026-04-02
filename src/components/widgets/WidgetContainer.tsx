@@ -82,10 +82,10 @@ export function WidgetContainer({
         ...(editMode ? { '--tw-ring-color': 'color-mix(in srgb, var(--theme-accent, #3b82f6) 40%, transparent)' } as React.CSSProperties : {}),
       }}
     >
-      {/* Full-screen expand button */}
+      {/* Full-screen expand button — always visible on touch devices */}
       <button
         onClick={() => setIsExpanded(true)}
-        className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/20 opacity-0 group-hover:opacity-100 hover:bg-black/40 transition-all z-10"
+        className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/20 opacity-0 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-60 hover:bg-black/40 transition-all z-10"
         title="Full screen"
       >
         <Maximize2 size={14} />
@@ -101,6 +101,8 @@ export function WidgetContainer({
             <button
               onClick={(e) => { e.stopPropagation(); setShowPalette(!showPalette); }}
               onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => { e.stopPropagation(); setShowPalette(!showPalette); }}
               className="p-1 rounded-full hover:bg-white/20 transition-colors"
               title="Widget color"
             >
@@ -119,6 +121,7 @@ export function WidgetContainer({
             borderColor: 'rgba(255,255,255,0.1)',
           }}
           onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
         >
           <div className="flex gap-1.5 flex-wrap max-w-[200px]">
             {WIDGET_COLOR_PRESETS.map((preset) => (

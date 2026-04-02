@@ -308,7 +308,7 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
   return (
     <div
       ref={containerRef}
-      className={`h-full w-full p-4 pt-16 relative ${editMode ? 'swiper-no-swiping' : ''}`}
+      className={`h-full w-full p-4 pt-16 relative ${editMode ? 'swiper-no-swiping rgl-edit-mode' : ''}`}
     >
       {/* Edit mode controls */}
       <div className="fixed top-4 left-4 z-40 flex items-center gap-2">

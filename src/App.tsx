@@ -26,6 +26,7 @@ import { db } from './db'
 import { getSettings } from './services/storage'
 import { initCloudSync } from './services/cloudSync'
 import { removeFromImmichAlbum, toggleImmichFavorite } from './services/immich'
+import { fetchWeather, type WeatherData } from './services/weather'
 import { setBrightness } from './services/brightnessService'
 import type { DashboardSettings } from './types'
 import { Maximize, Minimize, Settings, ChevronLeft, ChevronRight, ImagePlay, X, Home, Trash2, Shuffle, Heart } from 'lucide-react'
@@ -326,6 +327,9 @@ function AppContent() {
             }
           }}
         >
+          {/* Weather overlay — upper left */}
+          <PictureModeWeather settings={settings} />
+
           {/* Clock overlay */}
           <PictureModeClock />
 
@@ -487,6 +491,38 @@ function AppContent() {
       )}
     </div>
   )
+}
+
+function PictureModeWeather({ settings }: { settings: DashboardSettings | null }) {
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+
+  useEffect(() => {
+    if (!settings?.weatherApiKey) return;
+    const load = async () => {
+      const data = await fetchWeather(settings.weatherApiKey, settings.weatherLocation || '');
+      if (data) setWeather(data);
+    };
+    load();
+    const id = setInterval(load, 15 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [settings?.weatherApiKey, settings?.weatherLocation]);
+
+  if (!weather || !settings?.weatherApiKey) return null;
+
+  return (
+    <div className="absolute top-8 left-8 z-50 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] burn-in-shift flex items-center gap-2">
+      <img
+        src={`https://openweathermap.org/img/wn/${weather.current.icon}@2x.png`}
+        alt={weather.current.description}
+        className="w-14 h-14"
+      />
+      <div>
+        <div className="text-4xl font-light tabular-nums leading-none">{weather.current.temp}°</div>
+        <div className="text-sm text-white/70 capitalize mt-0.5">{weather.current.description}</div>
+        <div className="text-xs text-white/50 mt-0.5">💧{weather.current.humidity}% · 💨{weather.current.windSpeed}mph</div>
+      </div>
+    </div>
+  );
 }
 
 function PictureModeClock() {
