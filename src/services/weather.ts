@@ -47,35 +47,80 @@ export async function fetchWeather(
       query = 'id=5576859';
     }
 
-    const [currentRes, forecastRes] = await Promise.all([
-      fetch(
-        `https://api.openweathermap.org/data/2.5/weather?${query}&units=imperial&appid=${apiKey}`,
-      ),
+    // Fetch current weather first to get lat/lon for One Call API
+    const currentRes = await fetch(
+      `https://api.openweathermap.org/data/2.5/weather?${query}&units=imperial&appid=${apiKey}`,
+    );
+    if (!currentRes.ok) {
+      console.warn('Weather API error:', currentRes.status);
+      return null;
+    }
+    const currentData = await currentRes.json();
+
+    const { lat, lon } = currentData.coord as { lat: number; lon: number };
+
+    // Fetch 3-hour forecast (fallback) and One Call 3.0 (accurate daily) in parallel
+    const [forecastRes, oneCallRes] = await Promise.all([
       fetch(
         `https://api.openweathermap.org/data/2.5/forecast?${query}&units=imperial&appid=${apiKey}`,
       ),
+      fetch(
+        `https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&exclude=current,minutely,hourly,alerts&units=imperial&appid=${apiKey}`,
+      ).catch(() => null),
     ]);
 
-    if (!currentRes.ok || !forecastRes.ok) {
-      console.warn('Weather API error:', currentRes.status, forecastRes.status);
+    if (!forecastRes.ok) {
+      console.warn('Forecast API error:', forecastRes.status);
       return null;
     }
 
-    const currentData = await currentRes.json();
+    const currentDataMain = currentData;
     const forecastData = await forecastRes.json();
 
     const current: CurrentWeather = {
-      temp: Math.round(currentData.main.temp),
-      feelsLike: Math.round(currentData.main.feels_like),
-      description: currentData.weather[0].description,
-      icon: currentData.weather[0].icon,
-      humidity: currentData.main.humidity,
-      windSpeed: Math.round(currentData.wind.speed),
+      temp: Math.round(currentDataMain.main.temp),
+      feelsLike: Math.round(currentDataMain.main.feels_like),
+      description: currentDataMain.weather[0].description,
+      icon: currentDataMain.weather[0].icon,
+      humidity: currentDataMain.main.humidity,
+      windSpeed: Math.round(currentDataMain.wind.speed),
     };
 
-    const cityName: string = currentData.name ?? '';
+    const cityName: string = currentDataMain.name ?? '';
 
-    // Group the 3-hour forecast entries by calendar date
+    // Try One Call 3.0 for accurate daily min/max (same data source as OWM website)
+    let oneCallDailyMap: Map<string, { tempMin: number; tempMax: number; description: string; icon: string; humidity: number; windSpeed: number; pop: number }> | null = null;
+    if (oneCallRes && oneCallRes.ok) {
+      try {
+        const oneCallData = await oneCallRes.json();
+        if (Array.isArray(oneCallData.daily)) {
+          oneCallDailyMap = new Map();
+          for (const day of oneCallData.daily as Array<{
+            dt: number;
+            temp: { min: number; max: number; day: number };
+            weather: Array<{ description: string; icon: string }>;
+            humidity: number;
+            wind_speed: number;
+            pop: number;
+          }>) {
+            const date = new Date(day.dt * 1000).toISOString().slice(0, 10);
+            oneCallDailyMap.set(date, {
+              tempMin: Math.round(day.temp.min),
+              tempMax: Math.round(day.temp.max),
+              description: day.weather[0].description,
+              icon: day.weather[0].icon,
+              humidity: Math.round(day.humidity),
+              windSpeed: Math.round(day.wind_speed),
+              pop: Math.round((day.pop ?? 0) * 100),
+            });
+          }
+        }
+      } catch {
+        oneCallDailyMap = null;
+      }
+    }
+
+    // Group the 3-hour forecast entries by calendar date (used as fallback)
     const dailyMap = new Map<
       string,
       { temps: number[]; noonEntry?: { description: string; icon: string }; descriptions: string[]; icons: string[]; humidities: number[]; winds: number[]; pops: number[] }
@@ -108,25 +153,29 @@ export async function fetchWeather(
     const forecast: ForecastDay[] = [...dailyMap.entries()]
       .slice(0, 5)
       .map(([date, day]) => {
-        // Use noon entry for icon/description if available; otherwise use afternoon midpoint
+        // If One Call 3.0 succeeded, use its accurate daily min/max, icon, description
+        const onecall = oneCallDailyMap?.get(date);
+        if (onecall) {
+          return {
+            date,
+            tempMin: onecall.tempMin,
+            tempMax: onecall.tempMax,
+            description: onecall.description,
+            icon: onecall.icon,
+            humidity: onecall.humidity,
+            windSpeed: onecall.windSpeed,
+            pop: onecall.pop,
+          };
+        }
+
+        // Fallback: compute from 3-hour slots (may miss overnight/morning extremes)
         const repDesc = day.noonEntry?.description ?? day.descriptions[Math.floor(day.descriptions.length * 0.6)];
         const repIcon = day.noonEntry?.icon ?? day.icons[Math.floor(day.icons.length * 0.6)];
 
-        // For today, use the current-weather endpoint's daily min/max — these reflect
-        // the full model-day forecast and match what the OWM website displays.
-        // The /forecast endpoint only returns future 3-hour slots, so by mid-morning
-        // the overnight/morning highs are already missing from the list.
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const useCurrentMinMax = date === todayStr;
-
         return {
           date,
-          tempMin: useCurrentMinMax
-            ? Math.round(currentData.main.temp_min)
-            : Math.round(Math.min(...day.temps)),
-          tempMax: useCurrentMinMax
-            ? Math.round(currentData.main.temp_max)
-            : Math.round(Math.max(...day.temps)),
+          tempMin: Math.round(Math.min(...day.temps)),
+          tempMax: Math.round(Math.max(...day.temps)),
           description: repDesc,
           icon: repIcon,
           humidity: Math.round(day.humidities.reduce((a, b) => a + b, 0) / day.humidities.length),

@@ -130,6 +130,11 @@ a, button, [role="button"], input, select, label { touch-action: manipulation; }
 /* Always show resize handles in edit mode */
 .rgl-edit-mode .react-grid-item > .react-resizable-handle { opacity: 1; }
 
+/* CRITICAL: allow touch-drag on grid items in edit mode.
+   Without this, the browser captures touch events as scroll/pan before
+   react-grid-layout can register them as a drag gesture. */
+.rgl-edit-mode .react-grid-item { touch-action: none; }
+
 /* ── Dashboard Animations ─────────────────────────────────────────────────── */
 
 @keyframes checkmark {
