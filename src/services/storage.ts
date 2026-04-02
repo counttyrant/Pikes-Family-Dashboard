@@ -82,14 +82,19 @@ const DEFAULT_SETTINGS: DashboardSettings = {
 export async function getSettings(): Promise<DashboardSettings> {
   const existing = await db.settings.get('main');
   if (existing) {
-    // Migrate any missing fields from updated defaults (e.g. new weatherLocation default)
+    // Merge defaults for any fields added after the user's settings were created
     const merged = { ...DEFAULT_SETTINGS, ...existing };
-    // If weatherLocation was never set, write the default back
+    // IMPORTANT: if a field that must not be empty was overridden with '' by the spread,
+    // restore the default. Without this, if existing.weatherLocation === '' the merge
+    // produces merged.weatherLocation === '' and the write-back would loop forever
+    // (each DB write triggers dbSettings → getSettings → write again).
+    if (!merged.weatherLocation) merged.weatherLocation = DEFAULT_SETTINGS.weatherLocation;
+    // Only write back if the existing record was actually missing a critical field.
+    // Checking existing (not merged) to avoid writing unchanged data.
     if (!existing.weatherLocation) {
       await db.settings.put(merged);
-      return merged;
     }
-    return existing;
+    return merged;
   }
   await db.settings.put(DEFAULT_SETTINGS);
   return { ...DEFAULT_SETTINGS };

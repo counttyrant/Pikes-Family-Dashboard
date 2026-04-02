@@ -171,13 +171,14 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
   }, [remoteUrls.length, photoSource]);
 
   // Preload the initial image(s).
-  // For remote sources (immich/google/unsplash), skip preloading the DEFAULT_PHOTO_URLS
-  // fallback — wait until actual remoteUrls are available so we don't flash Unsplash.
+  // For immich/google-photos, skip preloading the DEFAULT_PHOTO_URLS fallback while
+  // waiting for the real album URLs so we don't flash Unsplash placeholder images.
+  // For local source, also react to localPhotoIds?.length so the effect re-fires when
+  // the DB query resolves — otherwise a stale closure could hold the wrong `urls`.
   useEffect(() => {
     if (initialLoaded || urls.length === 0) return;
-    // If this is a remote source but remoteUrls haven't loaded yet (we're showing
-    // DEFAULT_PHOTO_URLS as a placeholder), don't preload — wait for the real URLs.
-    if (photoSource !== 'local' && remoteUrls.length === 0) return;
+    // Block immich/google-photos until real album URLs are loaded
+    if ((photoSource === 'immich' || photoSource === 'google-photos') && remoteUrls.length === 0) return;
     let cancelled = false;
 
     if (photoSource === 'local') {
@@ -199,7 +200,11 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
     }
 
     return () => { cancelled = true; };
-  }, [initialLoaded, urls.length, remoteUrls.length, currentIdx, safeIdx, photoSource, getLocalBlobUrl]);
+  // localPhotoIds?.length is intentionally included so the effect re-runs when the
+  // Dexie query resolves — preventing a stale closure from using DEFAULT_PHOTO_URLS
+  // as local photo IDs when the user has the same number of local photos as the default set.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialLoaded, urls.length, remoteUrls.length, localPhotoIds?.length, currentIdx, safeIdx, photoSource, getLocalBlobUrl]);
 
   // Transition to a specific index
   const transitionTo = useCallback(async (targetIdx: number) => {
