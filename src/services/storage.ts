@@ -74,6 +74,9 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   brightnessServicePort: 3737,
   brightnessOnPresence: 100,
   brightnessOnIdle: 10,
+  lateNightEnabled: false,
+  lateNightStart: '22:00',
+  lateNightEnd: '06:00',
 };
 
 export async function getSettings(): Promise<DashboardSettings> {

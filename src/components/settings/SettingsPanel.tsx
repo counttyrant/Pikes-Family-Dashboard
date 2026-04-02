@@ -1102,6 +1102,38 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                 />
               )}
             </div>
+
+            {/* Late night mode */}
+            <div className="mt-3 pt-3 border-t border-white/10 space-y-3">
+              <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.lateNightEnabled ?? false}
+                  onChange={(e) => save({ lateNightEnabled: e.target.checked })}
+                  className="accent-indigo-500"
+                />
+                <span className="font-medium text-white/80">Late night mode (bouncing clock)</span>
+              </label>
+              <p className="text-xs text-white/40 -mt-1">
+                Replaces the entire screen with a moving clock to prevent burn-in. Nothing is static.
+              </p>
+              {settings.lateNightEnabled && (
+                <div className="flex gap-3">
+                  <InputField
+                    label="Start"
+                    value={settings.lateNightStart ?? '22:00'}
+                    onChange={(v) => save({ lateNightStart: v })}
+                    type="time"
+                  />
+                  <InputField
+                    label="End"
+                    value={settings.lateNightEnd ?? '06:00'}
+                    onChange={(v) => save({ lateNightEnd: v })}
+                    type="time"
+                  />
+                </div>
+              )}
+            </div>
           </Section>
 
           {/* ---- Presence & Wake ---- */}

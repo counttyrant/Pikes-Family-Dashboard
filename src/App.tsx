@@ -18,6 +18,7 @@ import { PhotoSlideshow } from './components/widgets/PhotoSlideshow'
 import type { PhotoSlideshowHandle } from './components/widgets/PhotoSlideshow'
 import { LoginScreen } from './components/auth/LoginScreen'
 import { ReconnectBanner } from './components/auth/ReconnectBanner'
+import { BouncingClock } from './components/BouncingClock'
 import { PresenceMonitor } from './components/presence/CameraPresenceMonitor'
 import { DimOverlay } from './components/presence/DimOverlay'
 import { useAuth } from './contexts/AuthContext'
@@ -81,19 +82,35 @@ function AppContent() {
     getSettings().then(setSettings)
   }, [dbSettings])
 
-  // Night mode
+  // Night mode + late night mode
   const [isNightMode, setIsNightMode] = useState(false)
+  const [isLateNight, setIsLateNight] = useState(false)
   useEffect(() => {
     if (!settings) return
     const check = () => {
       const now = new Date()
       const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+
+      // Regular night mode (dim)
       const start = settings.nightModeStart
       const end = settings.nightModeEnd
       if (start <= end) {
         setIsNightMode(hhmm >= start && hhmm < end)
       } else {
         setIsNightMode(hhmm >= start || hhmm < end)
+      }
+
+      // Late night mode (bouncing clock screensaver)
+      if (settings.lateNightEnabled) {
+        const lnStart = settings.lateNightStart || '22:00'
+        const lnEnd = settings.lateNightEnd || '06:00'
+        if (lnStart <= lnEnd) {
+          setIsLateNight(hhmm >= lnStart && hhmm < lnEnd)
+        } else {
+          setIsLateNight(hhmm >= lnStart || hhmm < lnEnd)
+        }
+      } else {
+        setIsLateNight(false)
       }
     }
     check()
@@ -289,6 +306,9 @@ function AppContent() {
       )}
 
       <PhotoSlideshow ref={slideshowRef} pictureMode={pictureMode} />
+
+      {/* Late night mode — full-screen bouncing clock screensaver, prevents burn-in */}
+      {isLateNight && <BouncingClock />}
 
       {/* Non-blocking reconnect banner — floats over dashboard when session expires */}
       {sessionExpired && <ReconnectBanner />}
