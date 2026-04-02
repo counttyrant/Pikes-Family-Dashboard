@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Clock } from 'lucide-react';
 import { syncLocalStorageToCloud } from '../../services/cloudSync';
 
@@ -11,43 +11,47 @@ interface Activity {
 }
 
 const STORAGE_KEY = 'pfd-activities';
+const USAGE_KEY = 'pfd-activity-usage';
 
 const KID_ICONS = [
   { emoji: '🎨', label: 'Art' },
-  { emoji: '⚽', label: 'Soccer' },
-  { emoji: '🏊', label: 'Swimming' },
+  { emoji: '🛁', label: 'Bath Time' },
+  { emoji: '🌙', label: 'Bed Time' },
   { emoji: '🚴', label: 'Biking' },
-  { emoji: '🎮', label: 'Games' },
-  { emoji: '📚', label: 'Reading' },
-  { emoji: '🎵', label: 'Music' },
-  { emoji: '🎬', label: 'Movie' },
-  { emoji: '🧩', label: 'Puzzles' },
-  { emoji: '🏃', label: 'Running' },
   { emoji: '🎲', label: 'Board Game' },
   { emoji: '🧁', label: 'Baking' },
-  { emoji: '🌳', label: 'Park' },
-  { emoji: '🛝', label: 'Playground' },
-  { emoji: '🎭', label: 'Pretend Play' },
-  { emoji: '🧪', label: 'Science' },
-  { emoji: '✏️', label: 'Homework' },
-  { emoji: '🛁', label: 'Bath Time' },
-  { emoji: '🍽️', label: 'Snack' },
-  { emoji: '🍕', label: 'Pizza' },
-  { emoji: '🧹', label: 'Clean Up' },
-  { emoji: '🐕', label: 'Dog Walk' },
-  { emoji: '🌙', label: 'Bed Time' },
-  { emoji: '📺', label: 'TV Time' },
-  { emoji: '🤸', label: 'Gymnastics' },
-  { emoji: '🎤', label: 'Singing' },
-  { emoji: '💃', label: 'Dance' },
   { emoji: '🏀', label: 'Basketball' },
-  { emoji: '⛸️', label: 'Skating' },
-  { emoji: '🎯', label: 'Practice' },
-  { emoji: '🧸', label: 'Playtime' },
-  { emoji: '🎪', label: 'Show' },
-  { emoji: '🖍️', label: 'Coloring' },
-  { emoji: '🪁', label: 'Kite' },
+  { emoji: '🍳', label: 'Breakfast' },
+  { emoji: '🪥', label: 'Brush Teeth' },
   { emoji: '🏕️', label: 'Camping' },
+  { emoji: '🧹', label: 'Clean Up' },
+  { emoji: '🖍️', label: 'Coloring' },
+  { emoji: '💃', label: 'Dance' },
+  { emoji: '🍽️', label: 'Dinner' },
+  { emoji: '🐕', label: 'Dog Walk' },
+  { emoji: '🎮', label: 'Games' },
+  { emoji: '🤸', label: 'Gymnastics' },
+  { emoji: '✏️', label: 'Homework' },
+  { emoji: '🪁', label: 'Kite' },
+  { emoji: '🥪', label: 'Lunch' },
+  { emoji: '🎵', label: 'Music' },
+  { emoji: '🎬', label: 'Movie' },
+  { emoji: '🌳', label: 'Park' },
+  { emoji: '🧩', label: 'Puzzles' },
+  { emoji: '🎭', label: 'Pretend Play' },
+  { emoji: '🎯', label: 'Practice' },
+  { emoji: '🧸', label: 'Play' },
+  { emoji: '🛝', label: 'Playground' },
+  { emoji: '📚', label: 'Reading' },
+  { emoji: '🏃', label: 'Running' },
+  { emoji: '🧪', label: 'Science' },
+  { emoji: '⚽', label: 'Soccer' },
+  { emoji: '🎤', label: 'Singing' },
+  { emoji: '🍎', label: 'Snack' },
+  { emoji: '🎪', label: 'Show' },
+  { emoji: '⛸️', label: 'Skating' },
+  { emoji: '🏊', label: 'Swimming' },
+  { emoji: '📺', label: 'TV Time' },
   { emoji: '🎻', label: 'Violin' },
 ];
 
@@ -59,25 +63,50 @@ function loadActivities(): Activity[] {
   }
 }
 
+function loadUsage(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(USAGE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
 function persistActivities(items: Activity[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   syncLocalStorageToCloud(STORAGE_KEY).catch(() => {});
 }
 
+function persistUsage(usage: Record<string, number>) {
+  localStorage.setItem(USAGE_KEY, JSON.stringify(usage));
+}
+
 export function Activities() {
   const [activities, setActivities] = useState<Activity[]>(loadActivities);
+  const [usage, setUsage] = useState<Record<string, number>>(loadUsage);
   const [showPicker, setShowPicker] = useState(false);
   const [customLabel, setCustomLabel] = useState('');
   const [customTime, setCustomTime] = useState('');
   const [selectedEmoji, setSelectedEmoji] = useState<string | null>(null);
 
   useEffect(() => persistActivities(activities), [activities]);
+  useEffect(() => persistUsage(usage), [usage]);
+
+  // Sort: most-used first, then alphabetical
+  const sortedIcons = useMemo(() => {
+    return [...KID_ICONS].sort((a, b) => {
+      const countDiff = (usage[b.label] ?? 0) - (usage[a.label] ?? 0);
+      if (countDiff !== 0) return countDiff;
+      return a.label.localeCompare(b.label);
+    });
+  }, [usage]);
 
   const addActivity = (emoji: string, label: string) => {
     setActivities((prev) => [
       ...prev,
       { id: crypto.randomUUID(), emoji, label, time: customTime || undefined, done: false },
     ]);
+    // Increment usage count for this activity label
+    setUsage((prev) => ({ ...prev, [label]: (prev[label] ?? 0) + 1 }));
     setSelectedEmoji(null);
     setCustomLabel('');
     setCustomTime('');
@@ -120,8 +149,8 @@ export function Activities() {
           {!selectedEmoji ? (
             <>
               <p className="text-xs text-slate-300 mb-2 font-medium">Pick an activity:</p>
-              <div className="grid grid-cols-6 gap-2 max-h-48 overflow-y-auto">
-                {KID_ICONS.map((item) => (
+              <div className="grid grid-cols-7 gap-1.5 max-h-72 overflow-y-auto">
+                {sortedIcons.map((item) => (
                   <button
                     key={item.emoji + item.label}
                     onClick={() => {
@@ -131,8 +160,11 @@ export function Activities() {
                     className="flex flex-col items-center gap-0.5 rounded-lg p-2 hover:bg-slate-600 active:scale-95 transition-all"
                     title={item.label}
                   >
-                    <span className="text-2xl">{item.emoji}</span>
-                    <span className="text-[9px] text-slate-400 truncate w-full text-center">{item.label}</span>
+                    <span className="text-3xl">{item.emoji}</span>
+                    <span className="text-[10px] text-slate-400 truncate w-full text-center leading-tight">{item.label}</span>
+                    {(usage[item.label] ?? 0) > 0 && (
+                      <span className="text-[8px] text-blue-400/70">{usage[item.label]}×</span>
+                    )}
                   </button>
                 ))}
               </div>
