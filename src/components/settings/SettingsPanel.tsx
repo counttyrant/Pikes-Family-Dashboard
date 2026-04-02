@@ -183,7 +183,7 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
     if (!isControlled) setInternalOpen(false);
   };
 
-  const { user, signOut, signIn } = useAuth();
+  const { user, signOut, signIn, accessToken } = useAuth();
   const { theme, setTheme, themes } = useTheme();
 
   const [settings, setSettings] = useState<DashboardSettings | null>(null);
@@ -296,14 +296,14 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
   /* -- Google Photos Albums ----------------------------------------------- */
 
   const handleFetchGoogleAlbums = async () => {
-    if (!user?.accessToken) {
-      setGoogleAlbumsError('Not signed in — sign in with Google first');
+    if (!accessToken) {
+      setGoogleAlbumsError(user?.tokenExpired ? 'Session expired — tap "Reconnect" to refresh your Google session' : 'Not signed in — sign in with Google first');
       return;
     }
     setGoogleAlbumsLoading(true);
     setGoogleAlbumsError(null);
     try {
-      const albums = await fetchGooglePhotosAlbums(user.accessToken);
+      const albums = await fetchGooglePhotosAlbums(accessToken);
       setGoogleAlbums(albums);
       if (albums.length === 0) {
         setGoogleAlbumsError('No albums found. Make sure the Photos Library API is enabled in your Google Cloud Console.');
@@ -321,15 +321,15 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
   /* -- Google Calendars -------------------------------------------------- */
 
   const handleFetchGoogleCalendars = async () => {
-    if (!user?.accessToken) {
-      setCalendarError('Not signed in — sign in with Google first');
+    if (!accessToken) {
+      setCalendarError(user?.tokenExpired ? 'Session expired — tap "Reconnect" to refresh your Google session' : 'Not signed in — sign in with Google first');
       return;
     }
     setCalendarLoading(true);
     setCalendarError(null);
     setCalendarErrorIs403(false);
     try {
-      const calendars = await fetchCalendarList(user.accessToken);
+      const calendars = await fetchCalendarList(accessToken);
       setGoogleCalendars(calendars);
       // Save calendar colors for color-coding events
       const colorMap: Record<string, string> = { ...(settings?.calendarColors ?? {}) };

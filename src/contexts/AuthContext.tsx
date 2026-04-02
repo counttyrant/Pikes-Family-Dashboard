@@ -324,7 +324,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sessionExpired,
       signIn,
       signOut: handleSignOut,
-      accessToken: user?.accessToken ?? null,
+      // Return null when token is expired so API calls won't fire with a stale token
+      accessToken: (user && !user.tokenExpired) ? user.accessToken : null,
     }),
     [user, isLoading, sessionExpired, signIn, handleSignOut],
   );
