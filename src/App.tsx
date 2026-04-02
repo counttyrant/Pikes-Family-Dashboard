@@ -17,6 +17,7 @@ import { AiAssistant } from './components/ai/AiAssistant'
 import { PhotoSlideshow } from './components/widgets/PhotoSlideshow'
 import type { PhotoSlideshowHandle } from './components/widgets/PhotoSlideshow'
 import { LoginScreen } from './components/auth/LoginScreen'
+import { ReconnectBanner } from './components/auth/ReconnectBanner'
 import { PresenceMonitor } from './components/presence/CameraPresenceMonitor'
 import { DimOverlay } from './components/presence/DimOverlay'
 import { useAuth } from './contexts/AuthContext'
@@ -203,8 +204,8 @@ function AppContent() {
     }
   }, [settings, isFavorited]);
 
-  // Show login/reconnect screen if not authenticated or session expired
-  if (!user || sessionExpired) {
+  // Show login screen only when there is no user at all (never signed in)
+  if (!user) {
     return <LoginScreen />
   }
 
@@ -288,6 +289,9 @@ function AppContent() {
       )}
 
       <PhotoSlideshow ref={slideshowRef} pictureMode={pictureMode} />
+
+      {/* Non-blocking reconnect banner — floats over dashboard when session expires */}
+      {sessionExpired && <ReconnectBanner />}
 
       {/* Picture mode — swipeable photos with clock, fit to screen */}
       {pictureMode && (
