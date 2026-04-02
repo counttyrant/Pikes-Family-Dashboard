@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';import { useLiveQuery } from 'dexie-react-hooks';
+import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { fetchImmichAlbumPhotos } from '../../services/immich';
 import { fetchGooglePhotosAlbumImages } from '../../services/googlePhotos';
@@ -6,6 +7,9 @@ import { fetchUnsplashPhotos, DEFAULT_PHOTO_URLS } from '../../services/unsplash
 import type { PhotoSource, DashboardSettings } from '../../types';
 
 const TRANSITION_MS = 1500;
+// Max number of local photo blobs held in memory at once.
+// Each decoded photo = ~8 MB GPU texture. 5 × 8 MB = ~40 MB vs loading all blobs at startup.
+const MAX_BLOB_CACHE = 5;
 
 function preloadImage(url: string): Promise<void> {
   return new Promise((resolve) => {
@@ -47,7 +51,16 @@ interface Props {
 }
 
 export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function PhotoSlideshow({ pictureMode = false }, ref) {
-  const localPhotos = useLiveQuery(() => db.photos.orderBy('addedAt').toArray());
+  // Load only photo IDs — blobs are NOT loaded into memory until a photo is displayed.
+  // Previously loading toArray() pulled every blob into the JS heap at startup.
+  const localPhotoIds: string[] = (useLiveQuery<string[], string[]>(
+    async () => {
+      const keys = await db.photos.orderBy('addedAt').primaryKeys();
+      return keys as string[];
+    },
+    [],
+    [],
+  )) ?? [];
   const dbSettings = useLiveQuery(() => db.settings.get('main'));
 
   const [remoteUrls, setRemoteUrls] = useState<string[]>([]);
@@ -58,10 +71,46 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [transitioning, setTransitioning] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
+  // Resolved blob URL for the currently displayed local photo (populated on demand)
+  const [resolvedDisplayUrl, setResolvedDisplayUrl] = useState<string | null>(null);
+
   const transitioningRef = useRef(false);
   const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const urlCache = useRef<Map<string, string>>(new Map());
+  // LRU blob URL cache: evicts + revokes oldest entry when full so at most
+  // MAX_BLOB_CACHE decoded images are resident in memory at once.
+  const blobCacheRef = useRef<Map<string, string>>(new Map());
+
+  const getLocalBlobUrl = useCallback(async (id: string): Promise<string | null> => {
+    const cache = blobCacheRef.current;
+    if (cache.has(id)) {
+      // LRU touch: move to end
+      const url = cache.get(id)!;
+      cache.delete(id);
+      cache.set(id, url);
+      return url;
+    }
+    const photo = await db.photos.get(id);
+    if (!photo) return null;
+    const url = URL.createObjectURL(photo.blob);
+    // Evict oldest entries to stay within the cache limit
+    while (cache.size >= MAX_BLOB_CACHE) {
+      const oldestKey = cache.keys().next().value as string;
+      URL.revokeObjectURL(cache.get(oldestKey)!);
+      cache.delete(oldestKey);
+    }
+    cache.set(id, url);
+    return url;
+  }, []);
+
+  // Revoke all blob URLs on unmount
+  useEffect(() => {
+    const cache = blobCacheRef.current;
+    return () => {
+      cache.forEach((url) => URL.revokeObjectURL(url));
+      cache.clear();
+    };
+  }, []);
 
   // Reload photos whenever settings change
   useEffect(() => {
@@ -93,58 +142,55 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
     return () => { cancelled = true; clearInterval(timer); };
   }, [dbSettings]);
 
-  const getUrl = useCallback(
-    (photo: { id: string; blob: Blob }) => {
-      const cached = urlCache.current.get(photo.id);
-      if (cached) return cached;
-      const url = URL.createObjectURL(photo.blob);
-      urlCache.current.set(photo.id, url);
-      return url;
-    },
-    [],
-  );
-
-  useEffect(() => {
-    const cache = urlCache.current;
-    return () => {
-      cache.forEach((url) => URL.revokeObjectURL(url));
-      cache.clear();
-    };
-  }, []);
-
-  // Build combined URL list
-  const getUrls = useCallback(() => {
-    if (photoSource === 'local' && localPhotos && localPhotos.length > 0) {
-      return localPhotos.map((p) => getUrl(p));
+  // Build combined URL list.
+  // For local photos, returns IDs (strings) — resolved to blob URLs on demand.
+  // For remote photos, returns actual URLs as before.
+  const getUrls = useCallback((): string[] => {
+    if (photoSource === 'local' && localPhotoIds && localPhotoIds.length > 0) {
+      return localPhotoIds;
     }
     if (remoteUrls.length > 0) return remoteUrls;
     return DEFAULT_PHOTO_URLS;
-  }, [photoSource, localPhotos, remoteUrls, getUrl]);
+  }, [photoSource, localPhotoIds, remoteUrls]);
 
   const urls = getUrls();
   const safeIdx = urls.length > 0 ? currentIdx % urls.length : 0;
-  const displayUrl = urls.length > 0 ? urls[safeIdx] : null;
+  // For local photos, use the asynchronously resolved blob URL; for remote, use directly.
+  const displayUrl = photoSource === 'local' ? resolvedDisplayUrl : (urls.length > 0 ? urls[safeIdx] : null);
 
-  // Start at random index when URL list changes
+  // Reset index when photo list source/length changes
   useEffect(() => {
-    const len = photoSource === 'local' ? (localPhotos?.length ?? 0) : remoteUrls.length;
+    const len = photoSource === 'local' ? (localPhotoIds?.length ?? 0) : remoteUrls.length;
     setCurrentIdx(len > 1 ? Math.floor(Math.random() * len) : 0);
     setInitialLoaded(false);
-  }, [remoteUrls.length, photoSource]);
+    setResolvedDisplayUrl(null);
+  }, [remoteUrls.length, localPhotoIds?.length, photoSource]);
 
-  // Preload first batch of images on initial load only
+  // Preload the initial image(s)
   useEffect(() => {
     if (initialLoaded || urls.length === 0) return;
     let cancelled = false;
-    const toPreload = [];
-    for (let i = 0; i < Math.min(4, urls.length); i++) {
-      toPreload.push(urls[(currentIdx + i) % urls.length]);
+
+    if (photoSource === 'local') {
+      const id = urls[safeIdx % urls.length];
+      getLocalBlobUrl(id).then((blobUrl) => {
+        if (!cancelled && blobUrl) {
+          setResolvedDisplayUrl(blobUrl);
+          setInitialLoaded(true);
+        }
+      });
+    } else {
+      const toPreload = [];
+      for (let i = 0; i < Math.min(4, urls.length); i++) {
+        toPreload.push(urls[(currentIdx + i) % urls.length]);
+      }
+      Promise.all(toPreload.map(preloadImage)).then(() => {
+        if (!cancelled) setInitialLoaded(true);
+      });
     }
-    Promise.all(toPreload.map(preloadImage)).then(() => {
-      if (!cancelled) setInitialLoaded(true);
-    });
+
     return () => { cancelled = true; };
-  }, [initialLoaded, urls.length, currentIdx]);
+  }, [initialLoaded, urls.length, currentIdx, safeIdx, photoSource, getLocalBlobUrl]);
 
   // Transition to a specific index
   const transitionTo = useCallback(async (targetIdx: number) => {
@@ -159,22 +205,32 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
     }
 
     transitioningRef.current = true;
-    await preloadImage(currentUrls[targetIdx]);
+
+    let targetUrl: string;
+    if (photoSource === 'local') {
+      const blobUrl = await getLocalBlobUrl(currentUrls[targetIdx]);
+      if (!blobUrl) { transitioningRef.current = false; return; }
+      targetUrl = blobUrl;
+    } else {
+      await preloadImage(currentUrls[targetIdx]);
+      targetUrl = currentUrls[targetIdx];
+    }
 
     // Show new image in the "next" layer fading IN while current fades OUT.
     // Only swap currentIdx AFTER the fade completes so both divs don't show
     // the same image (which caused the blink/flash).
-    setNextUrl(currentUrls[targetIdx]);
+    setNextUrl(targetUrl);
     setTransitioning(true);
 
     transitionTimeoutRef.current = setTimeout(() => {
       setCurrentIdx(targetIdx);
+      if (photoSource === 'local') setResolvedDisplayUrl(targetUrl);
       setTransitioning(false);
       setNextUrl(null);
       transitioningRef.current = false;
       transitionTimeoutRef.current = null;
     }, TRANSITION_MS);
-  }, [getUrls]);
+  }, [getUrls, getLocalBlobUrl, photoSource]);
 
   // Cancel pending transition timeout on unmount
   useEffect(() => {
@@ -224,15 +280,15 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
 
   const getCurrentInfo = useCallback((): PhotoInfo | null => {
     if (urls.length === 0) return null;
-    const url = urls[safeIdx];
-    if (photoSource === 'local' && localPhotos && localPhotos.length > 0 && safeIdx < localPhotos.length) {
-      return { url, source: 'local', localId: localPhotos[safeIdx].id };
+    const url = displayUrl || urls[safeIdx];
+    if (photoSource === 'local' && localPhotoIds && localPhotoIds.length > 0 && safeIdx < localPhotoIds.length) {
+      return { url, source: 'local', localId: localPhotoIds[safeIdx] };
     }
     if (photoSource === 'immich') {
       return { url, source: 'immich', immichAssetId: extractImmichAssetId(url) || undefined };
     }
     return { url, source: remoteUrls.length > 0 ? photoSource : 'default' };
-  }, [urls, safeIdx, photoSource, localPhotos, remoteUrls.length]);
+  }, [urls, safeIdx, displayUrl, photoSource, localPhotoIds, remoteUrls.length]);
 
   useImperativeHandle(ref, () => ({
     advance: advancePhoto,

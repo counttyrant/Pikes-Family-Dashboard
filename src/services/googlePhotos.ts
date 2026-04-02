@@ -47,7 +47,7 @@ export async function fetchGooglePhotosAlbumImages(
 
     const data = await response.json();
     return (data.mediaItems ?? []).map(
-      (item: { baseUrl: string }) => `${item.baseUrl}=w1920-h1080`
+      (item: { baseUrl: string }) => `${item.baseUrl}=w1280-h720`
     );
   } catch (error) {
     console.warn('Failed to fetch Google Photos album images:', error);
