@@ -42,11 +42,8 @@ export async function fetchWeather(
         query = `q=${encodeURIComponent(loc)}`;
       }
     } else {
-      // Try browser geolocation
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 }),
-      );
-      query = `lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`;
+      // No location set — fall back to Erie, CO
+      query = 'id=5576859';
     }
 
     const [currentRes, forecastRes] = await Promise.all([

@@ -81,7 +81,16 @@ const DEFAULT_SETTINGS: DashboardSettings = {
 
 export async function getSettings(): Promise<DashboardSettings> {
   const existing = await db.settings.get('main');
-  if (existing) return existing;
+  if (existing) {
+    // Migrate any missing fields from updated defaults (e.g. new weatherLocation default)
+    const merged = { ...DEFAULT_SETTINGS, ...existing };
+    // If weatherLocation was never set, write the default back
+    if (!existing.weatherLocation) {
+      await db.settings.put(merged);
+      return merged;
+    }
+    return existing;
+  }
   await db.settings.put(DEFAULT_SETTINGS);
   return { ...DEFAULT_SETTINGS };
 }

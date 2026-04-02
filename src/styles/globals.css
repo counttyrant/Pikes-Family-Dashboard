@@ -17,12 +17,20 @@ button, [role="button"], input, select { min-height: 44px; min-width: 44px; }
 /* Reduce 300ms tap delay on tablet/touch devices */
 a, button, [role="button"], input, select, label { touch-action: manipulation; }
 
+/* Drag handle needs touch-action:none for react-grid-layout touch drag */
+.drag-handle { touch-action: none; }
+
 /* Prevent touch interference on resize handles */
 .react-grid-item > .react-resizable-handle { touch-action: none; }
 
+/* Larger resize handles for touch — 44px tap target */
+.react-grid-item > .react-resizable-handle {
+  width: 44px !important;
+  height: 44px !important;
+}
+
 /* Burn-in prevention: slow pixel drift for static overlays in picture mode.
-   Amplitude ≈4px, period 90s — imperceptible to the eye but prevents
-   any single pixel from staying lit in the same position for hours. */
+   Amplitude ~4px, period 90s — imperceptible but keeps pixels moving. */
 @keyframes pixel-shift {
   0%   { transform: translate(0px,   0px); }
   20%  { transform: translate(3px,  -2px); }
@@ -36,19 +44,11 @@ a, button, [role="button"], input, select, label { touch-action: manipulation; }
 }
 .burn-in-shift-delayed {
   animation: pixel-shift 90s ease-in-out infinite;
-  animation-delay: -45s; /* offset so clock and next-event don't move together */
+  animation-delay: -45s;
 }
 
-/* Larger resize handles in edit mode */
-.rgl-edit-mode .react-grid-item > .react-resizable-handle {
-  width: 44px;
-  height: 44px;
-}
-.rgl-edit-mode .react-grid-item {
-  touch-action: none;
-}
+/* ── react-grid-layout styles ─────────────────────────────────────────────── */
 
-/* react-grid-layout styles */
 .react-grid-layout {
   position: relative;
   transition: height 200ms ease;
@@ -90,58 +90,47 @@ a, button, [role="button"], input, select, label { touch-action: manipulation; }
   height: 8px;
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-se {
-  bottom: 0;
-  right: 0;
-  cursor: se-resize;
+  bottom: 0; right: 0; cursor: se-resize;
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-se::after {
-  right: 3px;
-  bottom: 3px;
+  right: 3px; bottom: 3px;
   border-right: 2px solid rgba(96, 165, 250, 0.6);
   border-bottom: 2px solid rgba(96, 165, 250, 0.6);
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-sw {
-  bottom: 0;
-  left: 0;
-  cursor: sw-resize;
+  bottom: 0; left: 0; cursor: sw-resize;
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-sw::after {
-  left: 3px;
-  bottom: 3px;
+  left: 3px; bottom: 3px;
   border-left: 2px solid rgba(96, 165, 250, 0.6);
   border-bottom: 2px solid rgba(96, 165, 250, 0.6);
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-ne {
-  top: 0;
-  right: 0;
-  cursor: ne-resize;
+  top: 0; right: 0; cursor: ne-resize;
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-ne::after {
-  right: 3px;
-  top: 3px;
+  right: 3px; top: 3px;
   border-right: 2px solid rgba(96, 165, 250, 0.6);
   border-top: 2px solid rgba(96, 165, 250, 0.6);
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-nw {
-  top: 0;
-  left: 0;
-  cursor: nw-resize;
+  top: 0; left: 0; cursor: nw-resize;
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-nw::after {
-  left: 3px;
-  top: 3px;
+  left: 3px; top: 3px;
   border-left: 2px solid rgba(96, 165, 250, 0.6);
   border-top: 2px solid rgba(96, 165, 250, 0.6);
 }
-.react-resizable-hide > .react-resizable-handle {
-  display: none;
-}
+.react-resizable-hide > .react-resizable-handle { display: none; }
 .react-grid-item.react-grid-placeholder {
   background: rgba(59, 130, 246, 0.3);
   border-radius: 0.5rem;
 }
 
-/* ── Dashboard Animations ───────────────────────────────────────────────── */
+/* Always show resize handles in edit mode */
+.rgl-edit-mode .react-grid-item > .react-resizable-handle { opacity: 1; }
+
+/* ── Dashboard Animations ─────────────────────────────────────────────────── */
 
 @keyframes checkmark {
   0% { transform: scale(0) rotate(-45deg); opacity: 0; }
