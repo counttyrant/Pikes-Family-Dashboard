@@ -70,7 +70,7 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
     const settings = dbSettings as DashboardSettings;
 
     setPhotoSource(settings.photoSource);
-    setSlideInterval(settings.slideInterval || 15);
+    setSlideInterval(settings.slideInterval || 1);
 
     async function loadRemote() {
       if (settings.photoSource === 'immich' && settings.immichUrl && settings.immichApiKey && settings.immichAlbumId) {
@@ -155,13 +155,14 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
     transitioningRef.current = true;
     await preloadImage(currentUrls[targetIdx]);
 
-    // Update index BEFORE transitioning so the background-image URL is already
-    // correct when the opacity fade begins — prevents the end-of-transition flash.
-    setCurrentIdx(targetIdx);
+    // Show new image in the "next" layer fading IN while current fades OUT.
+    // Only swap currentIdx AFTER the fade completes so both divs don't show
+    // the same image (which caused the blink/flash).
     setNextUrl(currentUrls[targetIdx]);
     setTransitioning(true);
 
     setTimeout(() => {
+      setCurrentIdx(targetIdx);
       setTransitioning(false);
       setNextUrl(null);
       transitioningRef.current = false;
@@ -171,7 +172,12 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
   const advancePhoto = useCallback(() => {
     const currentUrls = getUrls();
     if (currentUrls.length <= 1) return;
-    transitionTo((currentIdx + 1) % currentUrls.length);
+    // Pick a random index that isn't the current one
+    let nextIdx: number;
+    do {
+      nextIdx = Math.floor(Math.random() * currentUrls.length);
+    } while (nextIdx === currentIdx && currentUrls.length > 1);
+    transitionTo(nextIdx);
   }, [getUrls, currentIdx, transitionTo]);
 
   const previousPhoto = useCallback(() => {
@@ -228,7 +234,7 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
 
   useEffect(() => {
     if (urls.length <= 1) return;
-    const intervalMs = (slideInterval || 15) * 1000;
+    const intervalMs = (slideInterval || 1) * 60 * 1000;
     const timer = setInterval(() => advanceRef.current(), intervalMs);
     return () => clearInterval(timer);
   }, [urls.length, slideInterval]);

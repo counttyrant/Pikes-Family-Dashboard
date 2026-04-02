@@ -41,7 +41,7 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   immichAlbumId: '',
   googlePhotosAlbumId: '',
   allowedEmails: [],
-  slideInterval: 15,
+  slideInterval: 1,
   selectedCalendarIds: ['primary'],
   activeWidgets: ['clock', 'weather', 'countdown', 'calendar'],
   calendarColors: {},

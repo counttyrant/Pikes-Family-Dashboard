@@ -760,22 +760,22 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
 
             {/* Slide interval */}
             <div className="space-y-2">
-              <span className="text-xs text-white/60">Slide Duration (seconds)</span>
+              <span className="text-xs text-white/60">Slide Duration (minutes)</span>
               <div className="flex items-center gap-3">
                 <input
                   type="range"
-                  min="5"
-                  max="120"
-                  step="5"
-                  value={settings.slideInterval || 15}
+                  min="1"
+                  max="60"
+                  step="1"
+                  value={settings.slideInterval || 1}
                   onChange={(e) => save({ slideInterval: parseInt(e.target.value) })}
                   className="flex-1 h-1.5 bg-white/10 rounded-full appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-400 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:cursor-pointer"
                 />
                 <input
                   type="number"
                   min="1"
-                  max="600"
-                  value={settings.slideInterval || 15}
+                  max="60"
+                  value={settings.slideInterval || 1}
                   onChange={(e) => {
                     const v = parseInt(e.target.value);
                     if (v > 0) save({ slideInterval: v });
