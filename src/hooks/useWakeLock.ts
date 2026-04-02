@@ -10,10 +10,15 @@ interface UseWakeLockReturn {
 export function useWakeLock(): UseWakeLockReturn {
   const [isActive, setIsActive] = useState(false);
   const sentinelRef = useRef<WakeLockSentinel | null>(null);
+  const releaseHandlerRef = useRef<(() => void) | null>(null);
   const isSupported = typeof navigator !== 'undefined' && 'wakeLock' in navigator;
 
   const release = useCallback(async () => {
     if (sentinelRef.current) {
+      if (releaseHandlerRef.current) {
+        sentinelRef.current.removeEventListener('release', releaseHandlerRef.current);
+        releaseHandlerRef.current = null;
+      }
       await sentinelRef.current.release();
       sentinelRef.current = null;
       setIsActive(false);
@@ -23,19 +28,27 @@ export function useWakeLock(): UseWakeLockReturn {
   const acquire = useCallback(async () => {
     if (!isSupported) return;
     try {
-      // Release any existing sentinel first
+      // Remove old listener and release existing sentinel before acquiring a new one
       if (sentinelRef.current) {
+        if (releaseHandlerRef.current) {
+          sentinelRef.current.removeEventListener('release', releaseHandlerRef.current);
+          releaseHandlerRef.current = null;
+        }
         await sentinelRef.current.release();
+        sentinelRef.current = null;
       }
       sentinelRef.current = await navigator.wakeLock.request('screen');
       setIsActive(true);
 
-      sentinelRef.current.addEventListener('release', () => {
+      // Store handler in ref so we can remove it on next acquire / release / unmount
+      const handleRelease = () => {
         setIsActive(false);
         sentinelRef.current = null;
-      });
+        releaseHandlerRef.current = null;
+      };
+      releaseHandlerRef.current = handleRelease;
+      sentinelRef.current.addEventListener('release', handleRelease);
     } catch (err) {
-      // Wake lock acquisition can fail if the document is hidden or battery is critically low
       console.warn('[WakeLock] Could not acquire:', err);
       setIsActive(false);
     }
@@ -62,6 +75,9 @@ export function useWakeLock(): UseWakeLockReturn {
   useEffect(() => {
     return () => {
       if (sentinelRef.current) {
+        if (releaseHandlerRef.current) {
+          sentinelRef.current.removeEventListener('release', releaseHandlerRef.current);
+        }
         sentinelRef.current.release().catch(() => {});
       }
     };

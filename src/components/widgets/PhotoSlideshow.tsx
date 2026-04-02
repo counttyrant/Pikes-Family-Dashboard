@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
+import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { fetchImmichAlbumPhotos } from '../../services/immich';
 import { fetchGooglePhotosAlbumImages } from '../../services/googlePhotos';
@@ -60,6 +59,7 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
   const [transitioning, setTransitioning] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
   const transitioningRef = useRef(false);
+  const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const urlCache = useRef<Map<string, string>>(new Map());
 
@@ -152,6 +152,12 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
     const currentUrls = getUrls();
     if (currentUrls.length <= 1) return;
 
+    // Cancel any pending transition timeout before starting a new one
+    if (transitionTimeoutRef.current) {
+      clearTimeout(transitionTimeoutRef.current);
+      transitionTimeoutRef.current = null;
+    }
+
     transitioningRef.current = true;
     await preloadImage(currentUrls[targetIdx]);
 
@@ -161,13 +167,21 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
     setNextUrl(currentUrls[targetIdx]);
     setTransitioning(true);
 
-    setTimeout(() => {
+    transitionTimeoutRef.current = setTimeout(() => {
       setCurrentIdx(targetIdx);
       setTransitioning(false);
       setNextUrl(null);
       transitioningRef.current = false;
+      transitionTimeoutRef.current = null;
     }, TRANSITION_MS);
   }, [getUrls]);
+
+  // Cancel pending transition timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (transitionTimeoutRef.current) clearTimeout(transitionTimeoutRef.current);
+    };
+  }, []);
 
   const advancePhoto = useCallback(() => {
     const currentUrls = getUrls();
