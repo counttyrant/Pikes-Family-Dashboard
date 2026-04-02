@@ -97,6 +97,9 @@ export function Weather({ apiKey, location }: WeatherProps) {
           <p className="text-xs text-white/40">
             💧 {data.current.humidity}% &nbsp; 💨 {data.current.windSpeed} mph
           </p>
+          {data.cityName && (
+            <p className="text-xs text-white/30 mt-0.5">{data.cityName}</p>
+          )}
         </div>
       </div>
 

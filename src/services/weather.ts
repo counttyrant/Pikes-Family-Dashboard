@@ -21,6 +21,7 @@ interface ForecastDay {
 export interface WeatherData {
   current: CurrentWeather;
   forecast: ForecastDay[];
+  cityName: string;
 }
 
 export async function fetchWeather(
@@ -72,10 +73,12 @@ export async function fetchWeather(
       windSpeed: Math.round(currentData.wind.speed),
     };
 
+    const cityName: string = currentData.name ?? '';
+
     // Group the 3-hour forecast entries by calendar date
     const dailyMap = new Map<
       string,
-      { temps: number[]; descriptions: string[]; icons: string[]; humidities: number[]; winds: number[]; pops: number[] }
+      { temps: number[]; noonEntry?: { description: string; icon: string }; descriptions: string[]; icons: string[]; humidities: number[]; winds: number[]; pops: number[] }
     >();
 
     for (const entry of forecastData.list as Array<{
@@ -85,7 +88,7 @@ export async function fetchWeather(
       wind: { speed: number };
       pop: number;
     }>) {
-      const date = entry.dt_txt.split(' ')[0];
+      const [date, time] = entry.dt_txt.split(' ');
       if (!dailyMap.has(date)) {
         dailyMap.set(date, { temps: [], descriptions: [], icons: [], humidities: [], winds: [], pops: [] });
       }
@@ -96,22 +99,31 @@ export async function fetchWeather(
       day.humidities.push(entry.main.humidity);
       day.winds.push(entry.wind.speed);
       day.pops.push(entry.pop ?? 0);
+      // Prefer the noon (12:00:00) entry for icon/description — matches OWM website
+      if (time === '12:00:00') {
+        day.noonEntry = { description: entry.weather[0].description, icon: entry.weather[0].icon };
+      }
     }
 
     const forecast: ForecastDay[] = [...dailyMap.entries()]
       .slice(0, 5)
-      .map(([date, day]) => ({
-        date,
-        tempMin: Math.round(Math.min(...day.temps)),
-        tempMax: Math.round(Math.max(...day.temps)),
-        description: day.descriptions[Math.floor(day.descriptions.length / 2)],
-        icon: day.icons[Math.floor(day.icons.length / 2)],
-        humidity: Math.round(day.humidities.reduce((a, b) => a + b, 0) / day.humidities.length),
-        windSpeed: Math.round(day.winds.reduce((a, b) => a + b, 0) / day.winds.length),
-        pop: Math.round(Math.max(...day.pops) * 100),
-      }));
+      .map(([date, day]) => {
+        // Use noon entry for icon/description if available; otherwise use afternoon midpoint
+        const repDesc = day.noonEntry?.description ?? day.descriptions[Math.floor(day.descriptions.length * 0.6)];
+        const repIcon = day.noonEntry?.icon ?? day.icons[Math.floor(day.icons.length * 0.6)];
+        return {
+          date,
+          tempMin: Math.round(Math.min(...day.temps)),
+          tempMax: Math.round(Math.max(...day.temps)),
+          description: repDesc,
+          icon: repIcon,
+          humidity: Math.round(day.humidities.reduce((a, b) => a + b, 0) / day.humidities.length),
+          windSpeed: Math.round(day.winds.reduce((a, b) => a + b, 0) / day.winds.length),
+          pop: Math.round(Math.max(...day.pops) * 100),
+        };
+      });
 
-    return { current, forecast };
+    return { current, forecast, cityName };
   } catch {
     return null;
   }

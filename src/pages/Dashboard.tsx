@@ -27,7 +27,7 @@ const DEFAULT_LAYOUTS: WidgetLayout[] = [
 
 const DEFAULT_ACTIVE = ['clock', 'weather', 'countdown', 'calendar']
 
-const MOBILE_BREAKPOINT = 768
+const MOBILE_BREAKPOINT = 480
 
 interface DashboardProps {
   settings: DashboardSettings | null
@@ -342,7 +342,7 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
 
       {/* Widget Library Panel */}
       {editMode && showLibrary && (
-        <div className="fixed top-16 left-4 z-50 w-80 max-h-[70vh] overflow-y-auto rounded-2xl border backdrop-blur-xl shadow-2xl p-4"
+        <div className="fixed top-16 left-4 z-[60] w-80 max-h-[70vh] overflow-y-auto rounded-2xl border backdrop-blur-xl shadow-2xl p-4"
           style={{
             backgroundColor: 'var(--theme-card, rgba(30, 41, 59, 0.95))',
             borderColor: 'color-mix(in srgb, var(--theme-accent, #3b82f6) 20%, transparent)',
@@ -417,7 +417,7 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
           return { ...l, minW: def?.minW ?? 2, minH: def?.minH ?? 2 }
         })}
         gridConfig={{ cols: 12, rowHeight: 80, margin: [16, 16] }}
-        dragConfig={{ enabled: editMode, handle: '.drag-handle' }}
+        dragConfig={{ enabled: editMode }}
         resizeConfig={{ enabled: editMode, handles: ['se', 'sw', 'ne', 'nw'] }}
         compactor={noCompactor}
         autoSize={true}
