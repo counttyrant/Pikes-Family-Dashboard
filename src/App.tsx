@@ -34,7 +34,7 @@ export { ALL_PAGES, DEFAULT_PAGE_ORDER } from './constants/pages'
 
 
 function AppContent() {
-  const { user } = useAuth()
+  const { user, sessionExpired, accessToken } = useAuth()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isIdle, setIsIdle] = useState(false)
@@ -203,8 +203,8 @@ function AppContent() {
     }
   }, [settings, isFavorited]);
 
-  // Show login screen if not authenticated
-  if (!user) {
+  // Show login/reconnect screen if not authenticated or session expired
+  if (!user || sessionExpired) {
     return <LoginScreen />
   }
 
@@ -212,7 +212,7 @@ function AppContent() {
   const renderPage = (id: string) => {
     switch (id) {
       case 'dashboard':
-        return <Dashboard settings={settings} accessToken={user!.accessToken} />;
+        return <Dashboard settings={settings} accessToken={accessToken} />;
       case 'chores':
         return <ChoreChart />;
       case 'shopping':
@@ -306,7 +306,7 @@ function AppContent() {
           <PictureModeClock />
 
           {/* Next event overlay */}
-          <PictureModeNextEvent accessToken={user?.accessToken} settings={settings} />
+          <PictureModeNextEvent accessToken={accessToken ?? undefined} settings={settings} />
 
           {/* Controls — visible when showControls is true */}
           <div className={`absolute top-4 right-4 z-50 flex gap-2 transition-opacity duration-500 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
