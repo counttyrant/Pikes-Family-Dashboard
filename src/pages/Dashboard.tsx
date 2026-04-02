@@ -135,7 +135,6 @@ export default function Dashboard({ settings, accessToken }: DashboardProps) {
       case 'weather':
         return (
           <Weather
-            apiKey={settings?.weatherApiKey ?? ''}
             location={settings?.weatherLocation ?? ''}
           />
         )

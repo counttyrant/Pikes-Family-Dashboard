@@ -709,27 +709,22 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
           {/* ---- Weather ---- */}
           <Section title="Weather" icon={<Cloud size={16} className="text-sky-400" />}>
             <InputField
-              label="API Key"
-              value={settings.weatherApiKey}
-              onChange={(v) => save({ weatherApiKey: v })}
-              placeholder="Enter OpenWeatherMap API key"
-            />
-            <InputField
               label="Location"
               value={settings.weatherLocation}
               onChange={(v) => save({ weatherLocation: v })}
-              placeholder="City name, e.g. Denver, CO"
+              placeholder="City name, e.g. Erie, CO"
             />
             <p className="text-xs text-white/40">
-              Get a free key at{' '}
+              Weather data from{' '}
               <a
-                href="https://openweathermap.org/api"
+                href="https://open-meteo.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-400 underline hover:text-blue-300"
               >
-                openweathermap.org
-              </a>
+                Open-Meteo
+              </a>{' '}
+              — free, no API key required.
             </p>
           </Section>
 

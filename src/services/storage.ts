@@ -23,7 +23,7 @@ import type {
 const DEFAULT_SETTINGS: DashboardSettings = {
   id: 'main',
   weatherApiKey: '',
-  weatherLocation: '5576859',
+  weatherLocation: 'Erie, CO',
   googleToken: null,
   nightModeStart: '21:00',
   nightModeEnd: '06:00',
@@ -89,9 +89,11 @@ export async function getSettings(): Promise<DashboardSettings> {
     // produces merged.weatherLocation === '' and the write-back would loop forever
     // (each DB write triggers dbSettings → getSettings → write again).
     if (!merged.weatherLocation) merged.weatherLocation = DEFAULT_SETTINGS.weatherLocation;
+    // Migrate old OWM numeric city IDs (e.g. "5576859") to a city name
+    if (/^\d{4,7}$/.test(merged.weatherLocation)) merged.weatherLocation = DEFAULT_SETTINGS.weatherLocation;
     // Only write back if the existing record was actually missing a critical field.
     // Checking existing (not merged) to avoid writing unchanged data.
-    if (!existing.weatherLocation) {
+    if (!existing.weatherLocation || /^\d{4,7}$/.test(existing.weatherLocation)) {
       await db.settings.put(merged);
     }
     return merged;

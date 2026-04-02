@@ -24,171 +24,112 @@ export interface WeatherData {
   cityName: string;
 }
 
-export async function fetchWeather(
-  apiKey: string,
-  location: string,
-): Promise<WeatherData | null> {
+// WMO weather interpretation code → OWM icon prefix + description
+// Icon suffix "d" (day) or "n" (night) appended at call site.
+const WMO_ICON: Record<number, string> = {
+  0: '01', 1: '01', 2: '02', 3: '04',
+  45: '50', 48: '50',
+  51: '09', 53: '09', 55: '09', 56: '09', 57: '09',
+  61: '10', 63: '10', 65: '10', 66: '10', 67: '10',
+  71: '13', 73: '13', 75: '13', 77: '13',
+  80: '09', 81: '09', 82: '09',
+  85: '13', 86: '13',
+  95: '11', 96: '11', 99: '11',
+};
+
+const WMO_DESC: Record<number, string> = {
+  0: 'clear sky', 1: 'mainly clear', 2: 'partly cloudy', 3: 'overcast',
+  45: 'fog', 48: 'icy fog',
+  51: 'light drizzle', 53: 'drizzle', 55: 'heavy drizzle',
+  56: 'freezing drizzle', 57: 'heavy freezing drizzle',
+  61: 'light rain', 63: 'rain', 65: 'heavy rain',
+  66: 'freezing rain', 67: 'heavy freezing rain',
+  71: 'light snow', 73: 'snow', 75: 'heavy snow', 77: 'snow grains',
+  80: 'light showers', 81: 'showers', 82: 'heavy showers',
+  85: 'light snow showers', 86: 'heavy snow showers',
+  95: 'thunderstorm', 96: 'thunderstorm with hail', 99: 'thunderstorm with heavy hail',
+};
+
+function wmoIcon(code: number, isDay: boolean): string {
+  const prefix = WMO_ICON[code] ?? '03';
+  return `${prefix}${isDay ? 'd' : 'n'}`;
+}
+
+function wmoDesc(code: number): string {
+  return WMO_DESC[code] ?? 'unknown';
+}
+
+async function geocode(cityName: string): Promise<{ lat: number; lon: number; name: string } | null> {
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=1&language=en&format=json`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const data = await res.json();
+  const r = data?.results?.[0];
+  if (!r) return null;
+  const label = r.admin1 ? `${r.name}, ${r.admin1}` : r.name;
+  return { lat: r.latitude, lon: r.longitude, name: label };
+}
+
+export async function fetchWeather(location: string): Promise<WeatherData | null> {
   try {
-    // Build query — use city name if provided, otherwise try lat/lon
-    let query = '';
-    if (location.trim()) {
-      const loc = location.trim();
-      // Detect OpenWeatherMap city ID (4–7 digit number)
-      if (/^\d{4,7}$/.test(loc)) {
-        query = `id=${loc}`;
-      // Detect US zip code (5-digit or 5+4)
-      } else if (/^\d{5}(-\d{4})?$/.test(loc)) {
-        query = `zip=${loc},US`;
-      } else {
-        query = `q=${encodeURIComponent(loc)}`;
-      }
+    const loc = (location || 'Erie, CO').trim();
+    let lat: number, lon: number, cityName: string;
+
+    // "lat,lon" format
+    const latLonMatch = /^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/.exec(loc);
+    if (latLonMatch) {
+      lat = parseFloat(latLonMatch[1]);
+      lon = parseFloat(latLonMatch[2]);
+      cityName = loc;
     } else {
-      // No location set — fall back to Erie, CO
-      query = 'id=5576859';
+      const geo = await geocode(loc);
+      if (!geo) {
+        console.warn('Weather: geocoding failed for', loc);
+        return null;
+      }
+      ({ lat, lon, name: cityName } = geo);
     }
 
-    // Fetch current weather first to get lat/lon for One Call API
-    const currentRes = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?${query}&units=imperial&appid=${apiKey}`,
-    );
-    if (!currentRes.ok) {
-      console.warn('Weather API error:', currentRes.status);
+    const params = new URLSearchParams({
+      latitude: String(lat),
+      longitude: String(lon),
+      current: 'temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,is_day',
+      daily: 'temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,wind_speed_10m_max,relative_humidity_2m_mean',
+      temperature_unit: 'fahrenheit',
+      wind_speed_unit: 'mph',
+      forecast_days: '5',
+      timezone: 'auto',
+    });
+
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
+    if (!res.ok) {
+      console.warn('Open-Meteo error:', res.status);
       return null;
     }
-    const currentData = await currentRes.json();
+    const data = await res.json();
 
-    const { lat, lon } = currentData.coord as { lat: number; lon: number };
-
-    // Fetch 3-hour forecast (fallback) and One Call 3.0 (accurate daily) in parallel
-    const [forecastRes, oneCallRes] = await Promise.all([
-      fetch(
-        `https://api.openweathermap.org/data/2.5/forecast?${query}&units=imperial&appid=${apiKey}`,
-      ),
-      fetch(
-        `https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&exclude=current,minutely,hourly,alerts&units=imperial&appid=${apiKey}`,
-      ).catch(() => null),
-    ]);
-
-    if (!forecastRes.ok) {
-      console.warn('Forecast API error:', forecastRes.status);
-      return null;
-    }
-
-    const currentDataMain = currentData;
-    const forecastData = await forecastRes.json();
-
+    const c = data.current;
+    const isDay = c.is_day === 1;
     const current: CurrentWeather = {
-      temp: Math.round(currentDataMain.main.temp),
-      feelsLike: Math.round(currentDataMain.main.feels_like),
-      description: currentDataMain.weather[0].description,
-      icon: currentDataMain.weather[0].icon,
-      humidity: currentDataMain.main.humidity,
-      windSpeed: Math.round(currentDataMain.wind.speed),
+      temp: Math.round(c.temperature_2m),
+      feelsLike: Math.round(c.apparent_temperature),
+      description: wmoDesc(c.weather_code),
+      icon: wmoIcon(c.weather_code, isDay),
+      humidity: Math.round(c.relative_humidity_2m),
+      windSpeed: Math.round(c.wind_speed_10m),
     };
 
-    const cityName: string = currentDataMain.name ?? '';
-
-    // Try One Call 3.0 for accurate daily min/max (same data source as OWM website)
-    let oneCallDailyMap: Map<string, { tempMin: number; tempMax: number; description: string; icon: string; humidity: number; windSpeed: number; pop: number }> | null = null;
-    if (oneCallRes && oneCallRes.ok) {
-      try {
-        const oneCallData = await oneCallRes.json();
-        if (Array.isArray(oneCallData.daily)) {
-          oneCallDailyMap = new Map();
-          for (const day of oneCallData.daily as Array<{
-            dt: number;
-            temp: { min: number; max: number; day: number };
-            weather: Array<{ description: string; icon: string }>;
-            humidity: number;
-            wind_speed: number;
-            pop: number;
-          }>) {
-            const date = new Date(day.dt * 1000).toISOString().slice(0, 10);
-            oneCallDailyMap.set(date, {
-              tempMin: Math.round(day.temp.min),
-              tempMax: Math.round(day.temp.max),
-              description: day.weather[0].description,
-              icon: day.weather[0].icon,
-              humidity: Math.round(day.humidity),
-              windSpeed: Math.round(day.wind_speed),
-              pop: Math.round((day.pop ?? 0) * 100),
-            });
-          }
-        }
-      } catch {
-        oneCallDailyMap = null;
-      }
-    }
-
-    // Group the 3-hour forecast entries by calendar date (used as fallback)
-    const dailyMap = new Map<
-      string,
-      { temps: number[]; noonEntry?: { description: string; icon: string }; descriptions: string[]; icons: string[]; humidities: number[]; winds: number[]; pops: number[] }
-    >();
-
-    for (const entry of forecastData.list as Array<{
-      dt_txt: string;
-      main: { temp: number; humidity: number };
-      weather: Array<{ description: string; icon: string }>;
-      wind: { speed: number };
-      pop: number;
-    }>) {
-      const [date, time] = entry.dt_txt.split(' ');
-      if (!dailyMap.has(date)) {
-        dailyMap.set(date, { temps: [], descriptions: [], icons: [], humidities: [], winds: [], pops: [] });
-      }
-      const day = dailyMap.get(date)!;
-      day.temps.push(entry.main.temp);
-      day.descriptions.push(entry.weather[0].description);
-      day.icons.push(entry.weather[0].icon);
-      day.humidities.push(entry.main.humidity);
-      day.winds.push(entry.wind.speed);
-      day.pops.push(entry.pop ?? 0);
-      // Prefer the noon (12:00:00) entry for icon/description — matches OWM website
-      if (time === '12:00:00') {
-        day.noonEntry = { description: entry.weather[0].description, icon: entry.weather[0].icon };
-      }
-    }
-
-    const forecast: ForecastDay[] = [...dailyMap.entries()]
-      .slice(0, 5)
-      .map(([date, day]) => {
-        // If One Call 3.0 succeeded, use its accurate daily min/max, icon, description
-        const onecall = oneCallDailyMap?.get(date);
-        if (onecall) {
-          return {
-            date,
-            tempMin: onecall.tempMin,
-            tempMax: onecall.tempMax,
-            description: onecall.description,
-            icon: onecall.icon,
-            humidity: onecall.humidity,
-            windSpeed: onecall.windSpeed,
-            pop: onecall.pop,
-          };
-        }
-
-        // Fallback: compute from 3-hour slots (may miss overnight/morning extremes).
-        // Include the current observed temperature so the hi/lo is at least bounded
-        // by what's actually happening outside right now.
-        const repDesc = day.noonEntry?.description ?? day.descriptions[Math.floor(day.descriptions.length * 0.6)];
-        const repIcon = day.noonEntry?.icon ?? day.icons[Math.floor(day.icons.length * 0.6)];
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const temps = date === todayStr
-          ? [...day.temps, Math.round(current.temp)]   // include live reading for today
-          : day.temps;
-
-        return {
-          date,
-          tempMin: Math.round(Math.min(...temps)),
-          tempMax: Math.round(Math.max(...temps)),
-          description: repDesc,
-          icon: repIcon,
-          humidity: Math.round(day.humidities.reduce((a, b) => a + b, 0) / day.humidities.length),
-          windSpeed: Math.round(day.winds.reduce((a, b) => a + b, 0) / day.winds.length),
-          pop: Math.round(Math.max(...day.pops) * 100),
-        };
-      });
+    const d = data.daily;
+    const forecast: ForecastDay[] = (d.time as string[]).map((date: string, i: number) => ({
+      date,
+      tempMax: Math.round(d.temperature_2m_max[i]),
+      tempMin: Math.round(d.temperature_2m_min[i]),
+      description: wmoDesc(d.weather_code[i]),
+      icon: wmoIcon(d.weather_code[i], true),
+      humidity: Math.round(d.relative_humidity_2m_mean[i] ?? 0),
+      windSpeed: Math.round(d.wind_speed_10m_max[i] ?? 0),
+      pop: Math.round(d.precipitation_probability_max[i] ?? 0),
+    }));
 
     return { current, forecast, cityName };
   } catch {

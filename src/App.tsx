@@ -497,17 +497,17 @@ function PictureModeWeather({ settings }: { settings: DashboardSettings | null }
   const [weather, setWeather] = useState<WeatherData | null>(null);
 
   useEffect(() => {
-    if (!settings?.weatherApiKey) return;
+    if (!settings) return;
     const load = async () => {
-      const data = await fetchWeather(settings.weatherApiKey, settings.weatherLocation || '');
+      const data = await fetchWeather(settings.weatherLocation || '');
       if (data) setWeather(data);
     };
     load();
     const id = setInterval(load, 15 * 60 * 1000);
     return () => clearInterval(id);
-  }, [settings?.weatherApiKey, settings?.weatherLocation]);
+  }, [settings?.weatherLocation]);
 
-  if (!weather || !settings?.weatherApiKey) return null;
+  if (!weather) return null;
 
   return (
     <div className="absolute top-8 left-8 z-50 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] burn-in-shift flex items-center gap-2">

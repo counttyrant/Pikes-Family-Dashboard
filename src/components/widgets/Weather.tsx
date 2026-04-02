@@ -4,45 +4,34 @@ import { format, parseISO } from 'date-fns';
 import { fetchWeather, type WeatherData } from '../../services/weather';
 
 interface WeatherProps {
-  apiKey: string;
   location: string;
 }
 
 const REFRESH_MS = 15 * 60 * 1000;
 
-export function Weather({ apiKey, location }: WeatherProps) {
+export function Weather({ location }: WeatherProps) {
   const [data, setData] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
   const load = useCallback(async () => {
-    if (!apiKey) return;
     setLoading(true);
     setError(false);
-    const result = await fetchWeather(apiKey, location);
+    const result = await fetchWeather(location);
     if (result) {
       setData(result);
     } else {
       setError(true);
     }
     setLoading(false);
-  }, [apiKey, location]);
+  }, [location]);
 
   useEffect(() => {
     load();
     const id = setInterval(load, REFRESH_MS);
     return () => clearInterval(id);
   }, [load]);
-
-  if (!apiKey) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 py-8 text-white/50">
-        <CloudOff className="w-12 h-12" />
-        <p className="text-lg">Set up weather in settings</p>
-      </div>
-    );
-  }
 
   if (loading && !data) {
     return (
@@ -59,8 +48,8 @@ export function Weather({ apiKey, location }: WeatherProps) {
         <p className="text-lg">Unable to load weather</p>
         <p className="text-xs text-white/30 text-center max-w-[200px]">
           {!location
-            ? 'Set a location in settings (e.g. "Denver, CO")'
-            : 'Check your API key and location in settings'}
+            ? 'Set a location in settings (e.g. "Erie, CO")'
+            : 'Check your location in settings'}
         </p>
       </div>
     );

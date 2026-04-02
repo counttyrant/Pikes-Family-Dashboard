@@ -1,20 +1,20 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { fetchWeather, type WeatherData } from '../services/weather'
 
-export function useWeather(apiKey: string, location: string) {
+export function useWeather(location: string) {
   const [data, setData] = useState<WeatherData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const cacheRef = useRef<WeatherData | null>(null)
 
   const refresh = useCallback(async () => {
-    if (!apiKey || !location) return
+    if (!location) return
 
     setLoading(true)
     setError(null)
 
     try {
-      const result = await fetchWeather(apiKey, location)
+      const result = await fetchWeather(location)
       if (result) {
         cacheRef.current = result
         setData(result)
@@ -26,7 +26,7 @@ export function useWeather(apiKey: string, location: string) {
     } finally {
       setLoading(false)
     }
-  }, [apiKey, location])
+  }, [location])
 
   useEffect(() => {
     refresh()
