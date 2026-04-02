@@ -497,7 +497,7 @@ function PictureModeClock() {
   }, []);
 
   return (
-    <div className="absolute bottom-8 left-8 z-50 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
+    <div className="absolute bottom-8 left-8 z-50 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] burn-in-shift">
       <div className="text-6xl font-light tabular-nums">
         {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
       </div>
@@ -584,7 +584,7 @@ function PictureModeNextEvent({ accessToken, settings }: { accessToken?: string;
   if (!nextEvent) return null;
 
   return (
-    <div className="absolute bottom-8 right-8 z-50 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
+    <div className="absolute bottom-8 right-8 z-50 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] burn-in-shift-delayed">
       <div className="text-sm text-white/60 uppercase tracking-wider mb-1">Up Next</div>
       <div className="text-2xl font-light">
         {nextEvent.emoji && <span className="mr-2">{nextEvent.emoji}</span>}

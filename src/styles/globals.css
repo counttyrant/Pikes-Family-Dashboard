@@ -20,6 +20,25 @@ a, button, [role="button"], input, select, label { touch-action: manipulation; }
 /* Prevent touch interference on resize handles */
 .react-grid-item > .react-resizable-handle { touch-action: none; }
 
+/* Burn-in prevention: slow pixel drift for static overlays in picture mode.
+   Amplitude ≈4px, period 90s — imperceptible to the eye but prevents
+   any single pixel from staying lit in the same position for hours. */
+@keyframes pixel-shift {
+  0%   { transform: translate(0px,   0px); }
+  20%  { transform: translate(3px,  -2px); }
+  40%  { transform: translate(-2px,  3px); }
+  60%  { transform: translate(4px,   2px); }
+  80%  { transform: translate(-3px, -3px); }
+  100% { transform: translate(0px,   0px); }
+}
+.burn-in-shift {
+  animation: pixel-shift 90s ease-in-out infinite;
+}
+.burn-in-shift-delayed {
+  animation: pixel-shift 90s ease-in-out infinite;
+  animation-delay: -45s; /* offset so clock and next-event don't move together */
+}
+
 /* Larger resize handles in edit mode */
 .rgl-edit-mode .react-grid-item > .react-resizable-handle {
   width: 44px;
