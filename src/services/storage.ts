@@ -78,6 +78,7 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   lateNightMode: 'clock',
   lateNightStart: '22:00',
   lateNightEnd: '06:00',
+  lateNightBrightness: 0,
   scheduledDimEnabled: false,
   scheduledDimStart: '21:00',
   scheduledDimEnd: '07:00',

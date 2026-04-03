@@ -158,9 +158,9 @@ function AppContent() {
   useEffect(() => {
     if (!settings?.brightnessServiceEnabled) return;
     if (screenOffActive) {
-      setBrightness(0, settings.brightnessServicePort ?? 3737);
+      setBrightness(settings.lateNightBrightness ?? 0, settings.brightnessServicePort ?? 3737);
     }
-  }, [screenOffActive, settings?.brightnessServiceEnabled, settings?.brightnessServicePort]);
+  }, [screenOffActive, settings?.brightnessServiceEnabled, settings?.brightnessServicePort, settings?.lateNightBrightness]);
 
   // Scheduled dim: screen dims during the configured window, tap wakes for 5 min
   const SCHEDULED_DIM_WAKE_MS = 5 * 60 * 1000;
@@ -205,11 +205,11 @@ function AppContent() {
     }
   }, [screenSaverTimeout])
 
-  // Auto picture mode on idle
+  // Auto picture mode on idle — paused while settings panel is open
   const autoPictureMode = settings?.autoPictureMode ?? true;
   const autoPictureModeTimeout = settings?.autoPictureModeTimeout ?? 300;
   useEffect(() => {
-    if (!autoPictureMode) return;
+    if (!autoPictureMode || settingsOpen) return;
     const timeout = autoPictureModeTimeout * 1000;
     let timer: ReturnType<typeof setTimeout>;
 
@@ -226,7 +226,7 @@ function AppContent() {
       clearTimeout(timer);
       events.forEach(e => window.removeEventListener(e, reset));
     };
-  }, [autoPictureMode, autoPictureModeTimeout])
+  }, [autoPictureMode, autoPictureModeTimeout, settingsOpen])
 
   // Fullscreen handler
   useEffect(() => {

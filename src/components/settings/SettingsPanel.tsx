@@ -1197,6 +1197,21 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                       type="time"
                     />
                   </div>
+                  {(settings.lateNightMode ?? 'clock') === 'off' && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs text-white/60">
+                        <span>Hardware brightness during screen-off</span>
+                        <span>{settings.lateNightBrightness ?? 0}%</span>
+                      </div>
+                      <input
+                        type="range" min={0} max={50} step={1}
+                        value={settings.lateNightBrightness ?? 0}
+                        onChange={(e) => save({ lateNightBrightness: parseInt(e.target.value) })}
+                        className="w-full accent-indigo-500"
+                      />
+                      <p className="text-[10px] text-white/30">0% = fully off. Raise slightly if you need a faint glow.</p>
+                    </div>
+                  )}
                 </>
               )}
             </div>

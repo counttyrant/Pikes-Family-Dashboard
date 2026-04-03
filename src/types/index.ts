@@ -222,6 +222,7 @@ export interface DashboardSettings {
   lateNightMode: 'clock' | 'off';   // 'clock' = bouncing clock, 'off' = black screen
   lateNightStart: string;           // HH:MM, default '22:00'
   lateNightEnd: string;             // HH:MM, default '06:00'
+  lateNightBrightness: number;      // 0–100, hardware brightness during screen-off (default 0)
   scheduledDimEnabled: boolean;     // schedule-based auto-dim (independent of presence)
   scheduledDimStart: string;        // HH:MM, default '21:00'
   scheduledDimEnd: string;          // HH:MM, default '07:00'
