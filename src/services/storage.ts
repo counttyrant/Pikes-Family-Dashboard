@@ -75,6 +75,7 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   brightnessOnPresence: 100,
   brightnessOnIdle: 10,
   lateNightEnabled: false,
+  lateNightMode: 'clock',
   lateNightStart: '22:00',
   lateNightEnd: '06:00',
 };

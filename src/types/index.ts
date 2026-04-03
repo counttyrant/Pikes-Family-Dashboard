@@ -218,7 +218,8 @@ export interface DashboardSettings {
   brightnessServicePort: number;    // default 3737
   brightnessOnPresence: number;     // 0–100
   brightnessOnIdle: number;         // 0–100
-  lateNightEnabled: boolean;        // show bouncing clock screensaver
+  lateNightEnabled: boolean;        // show bouncing clock screensaver or screen-off
+  lateNightMode: 'clock' | 'off';   // 'clock' = bouncing clock, 'off' = black screen
   lateNightStart: string;           // HH:MM, default '22:00'
   lateNightEnd: string;             // HH:MM, default '06:00'
 }

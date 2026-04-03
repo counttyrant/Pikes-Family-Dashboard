@@ -48,6 +48,8 @@ function AppContent() {
   const swiperRef = useRef<SwiperType | null>(null)
   const slideshowRef = useRef<PhotoSlideshowHandle | null>(null)
   const touchStartX = useRef(0)
+  // Tracks when the user last tapped to wake the screen during screen-off schedule
+  const [lateNightWakedAt, setLateNightWakedAt] = useState<number | null>(null)
 
   // Auto-hide controls after inactivity
   const [showControls, setShowControls] = useState(true)
@@ -118,6 +120,32 @@ function AppContent() {
     const interval = setInterval(check, 60000)
     return () => clearInterval(interval)
   }, [settings])
+
+  // Screen-off schedule: when lateNightMode='off', derive whether black screen is active.
+  // Tapping wakes for LATE_NIGHT_WAKE_MS then auto-re-blacks.
+  const LATE_NIGHT_WAKE_MS = 5 * 60 * 1000; // 5 minutes
+  const screenOffActive =
+    isLateNight &&
+    settings?.lateNightMode === 'off' &&
+    (lateNightWakedAt === null || Date.now() - lateNightWakedAt >= LATE_NIGHT_WAKE_MS);
+
+  // Re-check every 30 seconds so the 5-min auto-reblack fires accurately
+  useEffect(() => {
+    if (!isLateNight || settings?.lateNightMode !== 'off' || lateNightWakedAt === null) return;
+    const id = setInterval(() => {
+      // Force re-render to re-evaluate screenOffActive
+      setLateNightWakedAt((prev) => prev);
+    }, 30000);
+    return () => clearInterval(id);
+  }, [isLateNight, settings?.lateNightMode, lateNightWakedAt]);
+
+  // Brightness control for screen-off schedule
+  useEffect(() => {
+    if (!settings?.brightnessServiceEnabled) return;
+    if (screenOffActive) {
+      setBrightness(0, settings.brightnessServicePort ?? 3737);
+    }
+  }, [screenOffActive, settings?.brightnessServiceEnabled, settings?.brightnessServicePort]);
 
   // Screen saver / idle detection
   const screenSaverTimeout = settings?.screenSaverTimeout || 300;
@@ -308,8 +336,25 @@ function AppContent() {
 
       <PhotoSlideshow ref={slideshowRef} pictureMode={pictureMode} />
 
-      {/* Late night mode — full-screen bouncing clock screensaver, prevents burn-in */}
-      {isLateNight && <BouncingClock />}
+      {/* Late night mode — bouncing clock OR screen-off black overlay */}
+      {isLateNight && settings?.lateNightMode !== 'off' && <BouncingClock />}
+      {screenOffActive && (
+        <div
+          className="fixed inset-0 z-[300] bg-black cursor-pointer select-none"
+          onClick={() => {
+            setLateNightWakedAt(Date.now());
+            if (settings?.brightnessServiceEnabled) {
+              setBrightness(settings.brightnessOnPresence ?? 100, settings.brightnessServicePort ?? 3737);
+            }
+          }}
+          onTouchStart={() => {
+            setLateNightWakedAt(Date.now());
+            if (settings?.brightnessServiceEnabled) {
+              setBrightness(settings.brightnessOnPresence ?? 100, settings.brightnessServicePort ?? 3737);
+            }
+          }}
+        />
+      )}
 
       {/* Non-blocking reconnect banner — floats over dashboard when session expires */}
       {sessionExpired && <ReconnectBanner />}

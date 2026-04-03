@@ -18,7 +18,7 @@ import { fetchImmichAlbums } from '../../services/immich';
 import { fetchGooglePhotosAlbums } from '../../services/googlePhotos';
 import { fetchCalendarList } from '../../services/googleCalendar';
 import { saveAllToCloud, loadAllFromCloud } from '../../services/cloudSync';
-import { checkBrightnessService } from '../../services/brightnessService';
+import { checkBrightnessService, setBrightness } from '../../services/brightnessService';
 import {
   Settings,
   X,
@@ -272,6 +272,7 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
   const [immichLoading, setImmichLoading] = useState(false);
   const [immichError, setImmichError] = useState('');
   const [brightnessTestStatus, setBrightnessTestStatus] = useState<'idle' | 'ok' | 'fail'>('idle');
+  const [brightnessTestLevel, setBrightnessTestLevel] = useState(50);
 
   const handleFetchImmichAlbums = async () => {
     if (!settings?.immichUrl || !settings?.immichApiKey) {
@@ -1107,26 +1108,46 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                   onChange={(e) => save({ lateNightEnabled: e.target.checked })}
                   className="accent-indigo-500"
                 />
-                <span className="font-medium text-white/80">Late night mode (bouncing clock)</span>
+                <span className="font-medium text-white/80">Late night mode</span>
               </label>
-              <p className="text-xs text-white/40 -mt-1">
-                Replaces the entire screen with a moving clock to prevent burn-in. Nothing is static.
-              </p>
               {settings.lateNightEnabled && (
-                <div className="flex gap-3">
-                  <InputField
-                    label="Start"
-                    value={settings.lateNightStart ?? '22:00'}
-                    onChange={(v) => save({ lateNightStart: v })}
-                    type="time"
-                  />
-                  <InputField
-                    label="End"
-                    value={settings.lateNightEnd ?? '06:00'}
-                    onChange={(v) => save({ lateNightEnd: v })}
-                    type="time"
-                  />
-                </div>
+                <>
+                  {/* Mode selector */}
+                  <div className="flex gap-2">
+                    {(['off', 'clock'] as const).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => save({ lateNightMode: m })}
+                        className={`flex-1 text-xs py-1.5 rounded-lg border transition-colors ${
+                          (settings.lateNightMode ?? 'clock') === m
+                            ? 'bg-indigo-600 border-indigo-500 text-white'
+                            : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
+                        }`}
+                      >
+                        {m === 'off' ? '⬛ Screen Off' : '🕐 Bouncing Clock'}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-white/40 -mt-1">
+                    {(settings.lateNightMode ?? 'clock') === 'off'
+                      ? 'Screen goes completely black. Tap anywhere to wake for 5 minutes.'
+                      : 'Bouncing clock prevents burn-in. Screen stays on.'}
+                  </p>
+                  <div className="flex gap-3">
+                    <InputField
+                      label="Start"
+                      value={settings.lateNightStart ?? '22:00'}
+                      onChange={(v) => save({ lateNightStart: v })}
+                      type="time"
+                    />
+                    <InputField
+                      label="End"
+                      value={settings.lateNightEnd ?? '06:00'}
+                      onChange={(v) => save({ lateNightEnd: v })}
+                      type="time"
+                    />
+                  </div>
+                </>
               )}
             </div>
           </Section>
@@ -1359,6 +1380,27 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                             {brightnessTestStatus === 'idle' && null}
                             Test
                           </button>
+                        </div>
+
+                        {/* Live brightness test slider */}
+                        <div className="space-y-1 bg-white/5 rounded-xl p-3 border border-white/10">
+                          <div className="flex justify-between text-xs text-white/60 mb-1">
+                            <span>Test brightness now</span>
+                            <span>{brightnessTestLevel}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            value={brightnessTestLevel}
+                            onChange={(e) => setBrightnessTestLevel(parseInt(e.target.value))}
+                            onMouseUp={() => setBrightness(brightnessTestLevel, settings.brightnessServicePort ?? 3737)}
+                            onTouchEnd={() => setBrightness(brightnessTestLevel, settings.brightnessServicePort ?? 3737)}
+                            className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-white/10"
+                          />
+                          <p className="text-[10px] text-white/30 mt-1">
+                            Drag to preview — sets screen brightness immediately.
+                          </p>
                         </div>
 
                         <div className="space-y-2">
