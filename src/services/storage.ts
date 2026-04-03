@@ -78,6 +78,12 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   lateNightMode: 'clock',
   lateNightStart: '22:00',
   lateNightEnd: '06:00',
+  scheduledDimEnabled: false,
+  scheduledDimStart: '21:00',
+  scheduledDimEnd: '07:00',
+  scheduledDimMode: 'partial',
+  scheduledDimOpacity: 70,
+  scheduledDimBrightness: 10,
 };
 
 export async function getSettings(): Promise<DashboardSettings> {

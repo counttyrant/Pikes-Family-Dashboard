@@ -41,7 +41,6 @@ function AppContent() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isIdle, setIsIdle] = useState(false)
-  const [isDimmed, setIsDimmed] = useState(false)
   const [pictureMode, setPictureMode] = useState(false)
   const [settings, setSettings] = useState<DashboardSettings | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
@@ -50,6 +49,8 @@ function AppContent() {
   const touchStartX = useRef(0)
   // Tracks when the user last tapped to wake the screen during screen-off schedule
   const [lateNightWakedAt, setLateNightWakedAt] = useState<number | null>(null)
+  // Tracks when the user last tapped to wake from scheduled dim
+  const [scheduledDimWakedAt, setScheduledDimWakedAt] = useState<number | null>(null)
 
   // Auto-hide controls after inactivity
   const [showControls, setShowControls] = useState(true)
@@ -85,9 +86,10 @@ function AppContent() {
     getSettings().then(setSettings)
   }, [dbSettings])
 
-  // Night mode + late night mode
+  // Night mode + late night mode + scheduled dim
   const [isNightMode, setIsNightMode] = useState(false)
   const [isLateNight, setIsLateNight] = useState(false)
+  const [isScheduledDim, setIsScheduledDim] = useState(false)
   useEffect(() => {
     if (!settings) return
     const check = () => {
@@ -114,6 +116,19 @@ function AppContent() {
         }
       } else {
         setIsLateNight(false)
+      }
+
+      // Scheduled dim
+      if (settings.scheduledDimEnabled) {
+        const sdStart = settings.scheduledDimStart || '21:00'
+        const sdEnd = settings.scheduledDimEnd || '07:00'
+        if (sdStart <= sdEnd) {
+          setIsScheduledDim(hhmm >= sdStart && hhmm < sdEnd)
+        } else {
+          setIsScheduledDim(hhmm >= sdStart || hhmm < sdEnd)
+        }
+      } else {
+        setIsScheduledDim(false)
       }
     }
     check()
@@ -146,6 +161,27 @@ function AppContent() {
       setBrightness(0, settings.brightnessServicePort ?? 3737);
     }
   }, [screenOffActive, settings?.brightnessServiceEnabled, settings?.brightnessServicePort]);
+
+  // Scheduled dim: screen dims during the configured window, tap wakes for 5 min
+  const SCHEDULED_DIM_WAKE_MS = 5 * 60 * 1000;
+  const scheduledDimActive =
+    isScheduledDim &&
+    (scheduledDimWakedAt === null || Date.now() - scheduledDimWakedAt >= SCHEDULED_DIM_WAKE_MS);
+
+  // Re-check every 30s so 5-min wake window expires accurately
+  useEffect(() => {
+    if (!isScheduledDim || scheduledDimWakedAt === null) return;
+    const id = setInterval(() => setScheduledDimWakedAt((prev) => prev), 30000);
+    return () => clearInterval(id);
+  }, [isScheduledDim, scheduledDimWakedAt]);
+
+  // Brightness control for scheduled dim
+  useEffect(() => {
+    if (!settings?.brightnessServiceEnabled) return;
+    if (scheduledDimActive) {
+      setBrightness(settings.scheduledDimBrightness ?? 10, settings.brightnessServicePort ?? 3737);
+    }
+  }, [scheduledDimActive, settings?.brightnessServiceEnabled, settings?.scheduledDimBrightness, settings?.brightnessServicePort]);
 
   // Screen saver / idle detection
   const screenSaverTimeout = settings?.screenSaverTimeout || 300;
@@ -285,7 +321,7 @@ function AppContent() {
 
   return (
     <div className={`h-screen w-screen overflow-hidden text-white ${nightClass} transition-all duration-500`}>
-      {/* Presence monitor — invisible, keeps screen awake on motion */}
+      {/* Presence monitor — keeps screen awake on motion/sound + controls hardware brightness */}
       {settings && (
         <PresenceMonitor settings={{
           presenceDetectionEnabled: settings.presenceDetectionEnabled ?? false,
@@ -297,13 +333,12 @@ function AppContent() {
           presenceSource: settings.presenceSource ?? 'camera',
         }}
         onDim={() => {
-          if (settings.dimEnabled) setIsDimmed(true);
+          // Presence no longer triggers the dim overlay — only hardware brightness
           if (settings.brightnessServiceEnabled) {
             setBrightness(settings.brightnessOnIdle ?? 10, settings.brightnessServicePort ?? 3737);
           }
         }}
         onUndim={() => {
-          setIsDimmed(false);
           if (settings.brightnessServiceEnabled) {
             setBrightness(settings.brightnessOnPresence ?? 100, settings.brightnessServicePort ?? 3737);
           }
@@ -311,13 +346,13 @@ function AppContent() {
         />
       )}
 
-      {/* Dim overlay — shown when idle, tap to dismiss */}
-      {isDimmed && settings && (
+      {/* Scheduled dim overlay — shown during configured hours, tap wakes for 5 min */}
+      {scheduledDimActive && settings && (
         <DimOverlay
-          mode={settings.dimMode ?? 'partial'}
-          opacity={settings.dimOpacity ?? 70}
+          mode={settings.scheduledDimMode ?? 'partial'}
+          opacity={settings.scheduledDimOpacity ?? 70}
           onDismiss={() => {
-            setIsDimmed(false);
+            setScheduledDimWakedAt(Date.now());
             if (settings.brightnessServiceEnabled) {
               setBrightness(settings.brightnessOnPresence ?? 100, settings.brightnessServicePort ?? 3737);
             }

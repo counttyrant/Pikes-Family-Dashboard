@@ -19,6 +19,7 @@ import { fetchGooglePhotosAlbums } from '../../services/googlePhotos';
 import { fetchCalendarList } from '../../services/googleCalendar';
 import { saveAllToCloud, loadAllFromCloud } from '../../services/cloudSync';
 import { checkBrightnessService, setBrightness } from '../../services/brightnessService';
+import { useMicLevel } from '../../hooks/useMicLevel';
 import {
   Settings,
   X,
@@ -172,6 +173,55 @@ function VoiceSelector({ voiceName, onVoiceChange }: { voiceName: string; onVoic
 interface SettingsPanelProps {
   open?: boolean;
   onClose?: () => void;
+}
+
+/** Live microphone VU meter for testing mic sensitivity in the Presence settings. */
+function MicLevelMeter({ sensitivity }: { sensitivity: number }) {
+  const { level, isRunning, permissionDenied, start, stop } = useMicLevel();
+
+  // Map sensitivity 1–10 to threshold 4–40 (same as useMicPresence)
+  const threshold = Math.round(4 + (Math.max(1, Math.min(10, sensitivity)) - 1) * (36 / 9));
+  const pct = Math.min(100, Math.round((level / 60) * 100));
+  const thresholdPct = Math.min(100, Math.round((threshold / 60) * 100));
+  const triggered = level >= threshold;
+
+  return (
+    <div className="bg-white/5 rounded-xl p-3 border border-white/10 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-white/60">Sound meter</span>
+        <button
+          onClick={isRunning ? stop : start}
+          className={`text-xs px-2 py-1 rounded-lg transition-colors ${
+            isRunning ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30' : 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30'
+          }`}
+        >
+          {permissionDenied ? 'Permission denied' : isRunning ? 'Stop' : 'Start'}
+        </button>
+      </div>
+      {isRunning && (
+        <>
+          {/* VU bar */}
+          <div className="relative h-4 rounded-full bg-white/10 overflow-hidden">
+            <div
+              className={`absolute inset-y-0 left-0 rounded-full transition-all duration-75 ${triggered ? 'bg-cyan-400' : 'bg-white/30'}`}
+              style={{ width: `${pct}%` }}
+            />
+            {/* Threshold marker */}
+            <div
+              className="absolute inset-y-0 w-0.5 bg-yellow-400/80"
+              style={{ left: `${thresholdPct}%` }}
+            />
+          </div>
+          <p className="text-[10px] text-white/30">
+            Yellow line = current sensitivity threshold. Bar turns cyan when sound is detected.
+          </p>
+        </>
+      )}
+      {!isRunning && !permissionDenied && (
+        <p className="text-[10px] text-white/30">Tap Start to preview microphone input level.</p>
+      )}
+    </div>
+  );
 }
 
 export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelProps) {
@@ -1150,12 +1200,97 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                 </>
               )}
             </div>
+
+            {/* Scheduled dim */}
+            <div className="mt-3 pt-3 border-t border-white/10 space-y-3">
+              <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.scheduledDimEnabled ?? false}
+                  onChange={(e) => save({ scheduledDimEnabled: e.target.checked })}
+                  className="accent-indigo-500"
+                />
+                <span className="font-medium text-white/80">Scheduled dim</span>
+              </label>
+              {(settings.scheduledDimEnabled ?? false) && (
+                <>
+                  <p className="text-xs text-white/40 -mt-1">
+                    During these hours the screen dims automatically. Tap anywhere to wake for 5 minutes.
+                  </p>
+                  <div className="flex gap-3">
+                    <InputField
+                      label="Start"
+                      value={settings.scheduledDimStart ?? '21:00'}
+                      onChange={(v) => save({ scheduledDimStart: v })}
+                      type="time"
+                    />
+                    <InputField
+                      label="End"
+                      value={settings.scheduledDimEnd ?? '07:00'}
+                      onChange={(v) => save({ scheduledDimEnd: v })}
+                      type="time"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs text-white/60">Dim style</span>
+                    <div className="flex gap-2 mt-1 flex-wrap">
+                      {(['partial', 'black', 'clock'] as const).map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => save({ scheduledDimMode: m })}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
+                            (settings.scheduledDimMode ?? 'partial') === m
+                              ? 'bg-indigo-600 border-indigo-500 text-white ring-1 ring-indigo-400/40'
+                              : 'bg-white/5 text-white/50 hover:bg-white/10'
+                          }`}
+                        >
+                          {m === 'partial' ? 'Partial dim' : m === 'black' ? 'Full black' : 'Clock'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {(settings.scheduledDimMode ?? 'partial') === 'partial' && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs text-white/60">
+                        <span>Dim opacity</span>
+                        <span>{settings.scheduledDimOpacity ?? 70}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={10}
+                        max={95}
+                        value={settings.scheduledDimOpacity ?? 70}
+                        onChange={(e) => save({ scheduledDimOpacity: parseInt(e.target.value) })}
+                        className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-white/10"
+                      />
+                    </div>
+                  )}
+                  {(settings.brightnessServiceEnabled ?? false) && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs text-white/60">
+                        <span>Hardware brightness when dimmed</span>
+                        <span>{settings.scheduledDimBrightness ?? 10}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={settings.scheduledDimBrightness ?? 10}
+                        onChange={(e) => save({ scheduledDimBrightness: parseInt(e.target.value) })}
+                        className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-white/10"
+                      />
+                      <p className="text-[10px] text-white/30">Restores to "Brightness when active" on wake.</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </Section>
 
           {/* ---- Presence & Wake ---- */}
           <Section title="Presence & Wake" icon={<Camera size={16} className="text-cyan-400" />}>
             <p className="text-xs text-white/40 mb-3">
-              Detects motion or sound to keep the screen awake. Screen dims after the inactivity timeout.
+              Detects motion or sound to keep the screen awake and control hardware brightness.
             </p>
             <div className="space-y-3">
               {/* Master toggle */}
@@ -1207,14 +1342,22 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                       className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-white/10"
                     />
                     <div className="flex justify-between text-xs text-white/30">
-                      <span>Very sensitive</span>
-                      <span>Large motion only</span>
+                      {(settings.presenceSource ?? 'camera') === 'camera' ? (
+                        <><span>Subtle motion</span><span>Large motion only</span></>
+                      ) : (
+                        <><span>Quiet sounds</span><span>Loud sounds only</span></>
+                      )}
                     </div>
                   </div>
 
+                  {/* Mic sound meter — live VU bar when microphone is selected */}
+                  {(settings.presenceSource ?? 'camera') === 'microphone' && (
+                    <MicLevelMeter sensitivity={settings.presenceSensitivity ?? 5} />
+                  )}
+
                   {/* Inactivity timeout */}
                   <div className="space-y-1">
-                    <span className="text-xs text-white/60">Dim after (minutes of no activity)</span>
+                    <span className="text-xs text-white/60">Lower brightness after (minutes of no activity)</span>
                     <div className="flex flex-wrap gap-2 mt-1">
                       {[1, 2, 5, 10, 15].map((mins) => (
                         <button
@@ -1265,59 +1408,6 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                       </div>
                     </div>
                   )}
-
-                  {/* Dim overlay */}
-                  <div className="pt-2 border-t border-white/10 space-y-3">
-                    <label className="flex items-center justify-between gap-3 cursor-pointer">
-                      <span className="text-sm text-white/80">Dim screen when idle</span>
-                      <input
-                        type="checkbox"
-                        checked={settings.dimEnabled ?? false}
-                        onChange={(e) => save({ dimEnabled: e.target.checked })}
-                        className="w-4 h-4 rounded"
-                      />
-                    </label>
-
-                    {(settings.dimEnabled ?? false) && (
-                      <>
-                        <div className="space-y-1">
-                          <span className="text-xs text-white/60">Dim style</span>
-                          <div className="flex gap-2 mt-1 flex-wrap">
-                            {(['partial', 'black', 'clock'] as const).map((m) => (
-                              <button
-                                key={m}
-                                onClick={() => save({ dimMode: m })}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
-                                  (settings.dimMode ?? 'partial') === m
-                                    ? 'bg-cyan-500/30 text-cyan-300 ring-1 ring-cyan-400/40'
-                                    : 'bg-white/5 text-white/50 hover:bg-white/10'
-                                }`}
-                              >
-                                {m === 'partial' ? 'Partial dim' : m === 'black' ? 'Full black' : 'Clock'}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {(settings.dimMode ?? 'partial') === 'partial' && (
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-xs text-white/60">
-                              <span>Dim opacity</span>
-                              <span>{settings.dimOpacity ?? 70}%</span>
-                            </div>
-                            <input
-                              type="range"
-                              min={10}
-                              max={95}
-                              value={settings.dimOpacity ?? 70}
-                              onChange={(e) => save({ dimOpacity: parseInt(e.target.value) })}
-                              className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-white/10"
-                            />
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
 
                   {/* Brightness service */}
                   <div className="pt-2 border-t border-white/10 space-y-3">
