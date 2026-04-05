@@ -77,6 +77,29 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
   const transitioningRef = useRef(false);
   const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Shuffle queue — ensures every photo is seen once before any repeats.
+  // Works like a shuffled deck: walk through all indices in shuffled order,
+  // then reshuffle and start again when the deck is exhausted.
+  const shuffleQueueRef = useRef<number[]>([]);
+  const queuePosRef = useRef<number>(0);
+
+  /** Fisher-Yates shuffle of [0..n-1]. If skipFirst is provided, ensures that
+   *  index is not at position 0 (avoids showing the same photo twice in a row
+   *  when the queue is rebuilt). */
+  const buildShuffleQueue = useCallback((n: number, skipFirst?: number) => {
+    const arr = Array.from({ length: n }, (_, i) => i);
+    for (let i = n - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    // If the first entry would immediately repeat the current photo, swap it with position 1
+    if (skipFirst !== undefined && n > 1 && arr[0] === skipFirst) {
+      [arr[0], arr[1]] = [arr[1], arr[0]];
+    }
+    shuffleQueueRef.current = arr;
+    queuePosRef.current = 0;
+  }, []);
+
   // LRU blob URL cache: evicts + revokes oldest entry when full so at most
   // MAX_BLOB_CACHE decoded images are resident in memory at once.
   const blobCacheRef = useRef<Map<string, string>>(new Map());
@@ -158,15 +181,19 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
   // For local photos, use the asynchronously resolved blob URL; for remote, use directly.
   const displayUrl = photoSource === 'local' ? resolvedDisplayUrl : (urls.length > 0 ? urls[safeIdx] : null);
 
-  // Reset index when the actual photo source/count changes.
+  // Reset index and shuffle queue when the actual photo source/count changes.
   // NOTE: localPhotoIds?.length intentionally excluded from deps for Immich users
   // who also have local photos — that spurious reset would blank the screen briefly
   // every time the DB query resolves.
   useEffect(() => {
     const len = photoSource === 'local' ? (localPhotoIds?.length ?? 0) : remoteUrls.length;
-    setCurrentIdx(len > 1 ? Math.floor(Math.random() * len) : 0);
+    const startIdx = len > 1 ? Math.floor(Math.random() * len) : 0;
+    setCurrentIdx(startIdx);
     setInitialLoaded(false);
     setResolvedDisplayUrl(null);
+    // Invalidate the queue — it will be rebuilt on the next advance with the correct length
+    shuffleQueueRef.current = [];
+    queuePosRef.current = 0;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remoteUrls.length, photoSource]);
 
@@ -256,13 +283,15 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
   const advancePhoto = useCallback(() => {
     const currentUrls = getUrls();
     if (currentUrls.length <= 1) return;
-    // Pick a random index that isn't the current one
-    let nextIdx: number;
-    do {
-      nextIdx = Math.floor(Math.random() * currentUrls.length);
-    } while (nextIdx === currentIdx && currentUrls.length > 1);
+    const n = currentUrls.length;
+    // Rebuild the queue if it's empty or stale (different size than current library)
+    if (shuffleQueueRef.current.length !== n || queuePosRef.current >= n) {
+      buildShuffleQueue(n, currentIdx);
+    }
+    const nextIdx = shuffleQueueRef.current[queuePosRef.current];
+    queuePosRef.current += 1;
     transitionTo(nextIdx);
-  }, [getUrls, currentIdx, transitionTo]);
+  }, [getUrls, currentIdx, transitionTo, buildShuffleQueue]);
 
   const previousPhoto = useCallback(() => {
     const currentUrls = getUrls();
@@ -281,16 +310,13 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
   }, [currentIdx, urls.length]);
 
   const shufflePhotos = useCallback(() => {
-    setRemoteUrls(prev => {
-      const shuffled = [...prev];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-      return shuffled;
-    });
-    setCurrentIdx(0);
-  }, []);
+    const currentUrls = getUrls();
+    buildShuffleQueue(currentUrls.length, currentIdx);
+    // Immediately advance to the first photo in the new shuffle
+    const nextIdx = shuffleQueueRef.current[0];
+    queuePosRef.current = 1;
+    transitionTo(nextIdx);
+  }, [getUrls, currentIdx, buildShuffleQueue, transitionTo]);
 
   const getCurrentInfo = useCallback((): PhotoInfo | null => {
     if (urls.length === 0) return null;
