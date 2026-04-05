@@ -154,14 +154,6 @@ function AppContent() {
     return () => clearInterval(id);
   }, [isLateNight, settings?.lateNightMode, lateNightWakedAt]);
 
-  // Brightness control for screen-off schedule
-  useEffect(() => {
-    if (!settings?.brightnessServiceEnabled) return;
-    if (screenOffActive) {
-      setBrightness(settings.lateNightBrightness ?? 0, settings.brightnessServicePort ?? 3737);
-    }
-  }, [screenOffActive, settings?.brightnessServiceEnabled, settings?.brightnessServicePort, settings?.lateNightBrightness]);
-
   // Scheduled dim: screen dims during the configured window, tap wakes for 5 min
   const SCHEDULED_DIM_WAKE_MS = 5 * 60 * 1000;
   const scheduledDimActive =
@@ -175,13 +167,29 @@ function AppContent() {
     return () => clearInterval(id);
   }, [isScheduledDim, scheduledDimWakedAt]);
 
-  // Brightness control for scheduled dim
+  // Unified brightness controller — single source of truth for schedule-based brightness.
+  // Priority: screenOffActive > scheduledDimActive > restore to full.
+  // The else clause is the critical fix: brightness now restores when a schedule ends.
+  // Presence monitor's onDim/onUndim operate independently and will re-apply
+  // idle brightness immediately if it detects absence after a schedule ends.
   useEffect(() => {
     if (!settings?.brightnessServiceEnabled) return;
-    if (scheduledDimActive) {
-      setBrightness(settings.scheduledDimBrightness ?? 10, settings.brightnessServicePort ?? 3737);
+    const port = settings.brightnessServicePort ?? 3737;
+    if (screenOffActive) {
+      setBrightness(settings.lateNightBrightness ?? 0, port);
+    } else if (scheduledDimActive) {
+      setBrightness(settings.scheduledDimBrightness ?? 10, port);
+    } else {
+      // Schedule ended — restore to presence-on brightness.
+      // Presence monitor will re-apply idle brightness if no one is detected.
+      setBrightness(settings.brightnessOnPresence ?? 100, port);
     }
-  }, [scheduledDimActive, settings?.brightnessServiceEnabled, settings?.scheduledDimBrightness, settings?.brightnessServicePort]);
+  }, [
+    screenOffActive, scheduledDimActive,
+    settings?.brightnessServiceEnabled, settings?.brightnessServicePort,
+    settings?.lateNightBrightness, settings?.scheduledDimBrightness,
+    settings?.brightnessOnPresence,
+  ]);
 
   // Screen saver / idle detection
   const screenSaverTimeout = settings?.screenSaverTimeout || 300;

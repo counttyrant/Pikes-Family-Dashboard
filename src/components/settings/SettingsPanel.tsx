@@ -1216,6 +1216,23 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
               )}
             </div>
 
+            {/* Windows power plan note */}
+            <div className="mt-3 pt-3 border-t border-white/10">
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 space-y-1">
+                <p className="text-xs font-semibold text-yellow-300">⚠ Windows power settings</p>
+                <p className="text-[11px] text-white/50 leading-relaxed">
+                  If the tablet goes to sleep and requires the power button to wake, Windows is
+                  overriding the app. Run this in an admin command prompt to disable hibernate:
+                </p>
+                <code className="block text-[11px] text-cyan-300 bg-black/30 rounded px-2 py-1 mt-1 select-all">
+                  powercfg /h off
+                </code>
+                <p className="text-[11px] text-white/40">
+                  Also set Sleep to <strong>Never</strong> in Windows → Power Options for a true always-on kiosk.
+                </p>
+              </div>
+            </div>
+
             {/* Scheduled dim */}
             <div className="mt-3 pt-3 border-t border-white/10 space-y-3">
               <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer">
