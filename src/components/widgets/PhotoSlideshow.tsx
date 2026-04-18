@@ -48,9 +48,10 @@ export interface PhotoSlideshowHandle {
 
 interface Props {
   pictureMode?: boolean;
+  paused?: boolean;
 }
 
-export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function PhotoSlideshow({ pictureMode = false }, ref) {
+export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function PhotoSlideshow({ pictureMode = false, paused = false }, ref) {
   // Load only photo IDs — blobs are NOT loaded into memory until a photo is displayed.
   // Previously loading toArray() pulled every blob into the JS heap at startup.
   const localPhotoIds: string[] = (useLiveQuery<string[], string[]>(
@@ -338,16 +339,17 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
     removeCurrentFromList,
   }), [advancePhoto, previousPhoto, shufflePhotos, getCurrentInfo, removeCurrentFromList]);
 
-  // Slideshow timer
+  // Slideshow timer — paused during screen-off so the queue isn't consumed
+  // while no one can see the photos.
   const advanceRef = useRef(advancePhoto);
   advanceRef.current = advancePhoto;
 
   useEffect(() => {
-    if (urls.length <= 1) return;
+    if (urls.length <= 1 || paused) return;
     const intervalMs = (slideInterval || 1) * 60 * 1000;
     const timer = setInterval(() => advanceRef.current(), intervalMs);
     return () => clearInterval(timer);
-  }, [urls.length, slideInterval]);
+  }, [urls.length, slideInterval, paused]);
 
   const bgSize = pictureMode ? 'contain' : 'cover';
   const bgRepeat = pictureMode ? 'no-repeat' : undefined;

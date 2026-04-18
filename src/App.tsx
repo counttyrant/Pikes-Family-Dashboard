@@ -213,11 +213,11 @@ function AppContent() {
     }
   }, [screenSaverTimeout])
 
-  // Auto picture mode on idle — paused while settings panel is open
+  // Auto picture mode on idle — paused while settings panel is open or screen is off
   const autoPictureMode = settings?.autoPictureMode ?? true;
   const autoPictureModeTimeout = settings?.autoPictureModeTimeout ?? 300;
   useEffect(() => {
-    if (!autoPictureMode || settingsOpen) return;
+    if (!autoPictureMode || settingsOpen || screenOffActive) return;
     const timeout = autoPictureModeTimeout * 1000;
     let timer: ReturnType<typeof setTimeout>;
 
@@ -234,7 +234,7 @@ function AppContent() {
       clearTimeout(timer);
       events.forEach(e => window.removeEventListener(e, reset));
     };
-  }, [autoPictureMode, autoPictureModeTimeout, settingsOpen])
+  }, [autoPictureMode, autoPictureModeTimeout, settingsOpen, screenOffActive])
 
   // Fullscreen handler
   useEffect(() => {
@@ -377,7 +377,7 @@ function AppContent() {
         />
       )}
 
-      <PhotoSlideshow ref={slideshowRef} pictureMode={pictureMode} />
+      <PhotoSlideshow ref={slideshowRef} pictureMode={pictureMode} paused={screenOffActive} />
 
       {/* Late night mode — bouncing clock OR screen-off black overlay */}
       {isLateNight && settings?.lateNightMode !== 'off' && <BouncingClock />}
