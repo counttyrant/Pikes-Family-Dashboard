@@ -82,7 +82,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setAccessToken(data.accessToken);
           setSessionExpired(false);
           scheduleRefresh(data.expiresAt);
-          // Keep IndexedDB profile fresh
+          // Keep IndexedDB profile and googleToken fresh so Google Photos/Calendar
+          // always have a valid token without re-login
           await saveAuthUser({
             email: data.email,
             name: data.name,
@@ -90,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             accessToken: data.accessToken,
             expiresAt: data.expiresAt,
           });
+          await saveSettings({ googleToken: data.accessToken });
         } else {
           setSessionExpired(true);
           setAccessToken(null);
@@ -112,6 +114,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         window.history.replaceState({}, '', '/');
       }
 
+      // Load cached user immediately for instant display (kiosk cold-start UX)
+      const stored = await getAuthUser();
+      if (stored && !cancelled) {
+        setUser(stored);
+      }
+
       try {
         const data = await fetchTokenFromApi();
 
@@ -128,26 +136,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setAccessToken(data.accessToken);
             setSessionExpired(false);
             scheduleRefresh(data.expiresAt);
-            // Cache profile in IndexedDB for instant display on next load
+            // Cache profile and keep googleToken current
             await saveAuthUser(googleUser);
+            await saveSettings({ googleToken: data.accessToken });
           } else {
-            // Not authenticated — show cached profile while on login screen
-            const stored = await getAuthUser();
+            // Not authenticated — show cached profile with expired flag
             if (stored) {
               setUser({ ...stored, tokenExpired: true });
-              setSessionExpired(true);
             }
+            setSessionExpired(true);
           }
         }
       } catch (err) {
         console.error('Auth init failed:', err);
-        // Network failure — show cached profile if available
-        if (!cancelled) {
-          const stored = await getAuthUser();
-          if (stored) {
-            setUser({ ...stored, tokenExpired: true });
-            setSessionExpired(true);
-          }
+        // Network failure (e.g. cold-start timeout) — keep cached user visible,
+        // don't mark as expired so the kiosk stays functional.
+        // The next scheduled refresh will fix the token when connectivity returns.
+        if (!cancelled && stored) {
+          setUser(stored);
+          // Schedule retry after 2 minutes
+          setTimeout(() => {
+            if (!cancelled) init();
+          }, 2 * 60 * 1000);
+        } else if (!cancelled) {
+          setSessionExpired(true);
         }
       } finally {
         if (!cancelled) setIsLoading(false);

@@ -77,21 +77,67 @@ export async function fetchImmichAlbumPhotos(
   albumId: string
 ): Promise<string[]> {
   try {
-    const album = await proxyFetch(serverUrl, apiKey, `/api/albums/${albumId}`);
     const url = serverUrl.replace(/\/+$/, '');
-    // Route thumbnails through proxy too — Immich requires x-api-key header for images
-    return (album.assets ?? []).map(
-      (asset: { id: string }) => {
+
+    // withoutAssets=false ensures assets array is included — some Immich versions
+    // default to excluding them for performance on large albums.
+    const album = await proxyFetch(serverUrl, apiKey, `/api/albums/${albumId}?withoutAssets=false`);
+
+    let assets: { id: string; type?: string }[] = album.assets ?? [];
+
+    // If fewer assets were returned than the album reports, use paginated fetch
+    if (typeof album.assetCount === 'number' && assets.length < album.assetCount) {
+      console.log(`[Immich] Album has ${album.assetCount} assets but only ${assets.length} were included in album response. Fetching all pages...`);
+      assets = await fetchAllAlbumAssets(serverUrl, apiKey, albumId, album.assetCount);
+    }
+
+    // Filter to images only (exclude videos) and build proxied thumbnail URLs
+    const imageUrls = assets
+      .filter((asset) => !asset.type || asset.type === 'IMAGE' || asset.type === 'image')
+      .map((asset) => {
         const params = new URLSearchParams({
           server: url,
           path: `/api/assets/${asset.id}/thumbnail?size=preview`,
           apiKey,
         });
         return `${PROXY_BASE}?${params}`;
-      }
-    );
+      });
+
+    console.log(`[Immich] Loaded ${imageUrls.length} image URLs (${assets.length} total assets in album)`);
+    return imageUrls;
   } catch (error) {
     console.warn('Failed to fetch Immich album photos:', error);
     return [];
   }
+}
+
+/** Paginated fallback: fetches all assets from the album using smaller batches */
+async function fetchAllAlbumAssets(
+  serverUrl: string,
+  apiKey: string,
+  albumId: string,
+  totalCount: number,
+): Promise<{ id: string; type?: string }[]> {
+  const PAGE_SIZE = 200;
+  const pages = Math.ceil(totalCount / PAGE_SIZE);
+  const all: { id: string; type?: string }[] = [];
+
+  for (let page = 1; page <= pages && page <= 20; page++) {
+    try {
+      // Use the search/metadata endpoint which supports albumId + pagination in all Immich versions
+      const data = await proxyFetch(
+        serverUrl,
+        apiKey,
+        `/api/assets?albumId=${encodeURIComponent(albumId)}&page=${page}&size=${PAGE_SIZE}`,
+      );
+      const batch: { id: string; type?: string }[] = Array.isArray(data) ? data : [];
+      all.push(...batch);
+      if (batch.length < PAGE_SIZE) break;
+    } catch {
+      // If the paginated endpoint isn't supported, stop and return what we have
+      break;
+    }
+  }
+
+  return all;
 }
