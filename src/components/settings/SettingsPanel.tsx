@@ -7,6 +7,7 @@ import {
   addPhoto,
   deletePhoto,
   addFamilyMember,
+  updateFamilyMember,
   deleteFamilyMember,
   addCountdownEvent,
   deleteCountdownEvent,
@@ -53,6 +54,8 @@ import {
   CheckCircle,
   XCircle,
   Sun,
+  Pencil,
+  Save,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { ALL_PAGES, DEFAULT_PAGE_ORDER } from '../../constants/pages';
@@ -256,6 +259,13 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
   const [cloudStatus, setCloudStatus] = useState<'idle' | 'saving' | 'loading' | 'saved' | 'loaded' | 'error'>('idle');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const editAvatarInputRef = useRef<HTMLInputElement>(null);
+
+  // Family member inline edit state
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [editMemberName, setEditMemberName] = useState('');
+  const [editMemberColor, setEditMemberColor] = useState('#3b82f6');
+  const [editMemberAvatar, setEditMemberAvatar] = useState('');
 
   const members = useLiveQuery(() => db.familyMembers.toArray()) ?? [];
   const photos = useLiveQuery(() => db.photos.orderBy('addedAt').reverse().toArray()) ?? [];
@@ -290,6 +300,31 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
     setNewMemberName('');
     setNewMemberColor('#3b82f6');
     setNewMemberAvatar('');
+  };
+
+  const startEditMember = (m: typeof members[0]) => {
+    setEditingMemberId(m.id);
+    setEditMemberName(m.name);
+    setEditMemberColor(m.color);
+    setEditMemberAvatar(m.avatar ?? '');
+  };
+
+  const saveEditMember = async () => {
+    if (!editingMemberId || !editMemberName.trim()) return;
+    await updateFamilyMember(editingMemberId, {
+      name: editMemberName.trim(),
+      color: editMemberColor,
+      avatar: editMemberAvatar,
+    });
+    setEditingMemberId(null);
+  };
+
+  const handleEditAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const base64 = await fileToBase64(file);
+      setEditMemberAvatar(base64);
+    }
   };
 
   /* -- Photos ------------------------------------------------------------- */
@@ -973,36 +1008,98 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
             )}
           </Section>
 
-          {/* ---- Family Members ---- */}
           <Section title="Family Members" icon={<Users size={16} className="text-violet-400" />}>
             <div className="space-y-2">
               {members.map((m) => (
-                <div key={m.id} className="flex items-center gap-2 p-2 rounded-lg bg-white/5">
-                  {m.avatar ? (
-                    <img
-                      src={m.avatar}
-                      alt={m.name}
-                      className="w-8 h-8 rounded-full object-cover"
-                    />
+                <div key={m.id}>
+                  {editingMemberId === m.id ? (
+                    /* Inline edit form */
+                    <div className="space-y-2 p-3 rounded-xl bg-white/5 border border-white/10">
+                      <div className="flex gap-2">
+                        <input
+                          value={editMemberName}
+                          onChange={(e) => setEditMemberName(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && saveEditMember()}
+                          placeholder="Name"
+                          className="flex-1 rounded-lg bg-white/10 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          autoFocus
+                        />
+                        <input
+                          type="color"
+                          value={editMemberColor}
+                          onChange={(e) => setEditMemberColor(e.target.value)}
+                          className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-0"
+                        />
+                      </div>
+                      <div className="flex gap-2 items-center">
+                        <input
+                          ref={editAvatarInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleEditAvatarChange}
+                          className="hidden"
+                        />
+                        <button
+                          onClick={() => editAvatarInputRef.current?.click()}
+                          className="flex items-center gap-1.5 px-3 py-2 text-xs bg-white/10 hover:bg-white/15 rounded-lg text-white/70 transition-colors"
+                        >
+                          <Camera size={14} />
+                          {editMemberAvatar ? 'Avatar ✓' : 'Change avatar'}
+                        </button>
+                        {editMemberAvatar && (
+                          <img src={editMemberAvatar} alt="Preview" className="w-8 h-8 rounded-full object-cover" />
+                        )}
+                        {editMemberAvatar && (
+                          <button onClick={() => setEditMemberAvatar('')} className="text-xs text-red-400 hover:text-red-300">Remove</button>
+                        )}
+                        <div className="flex-1" />
+                        <button
+                          onClick={() => setEditingMemberId(null)}
+                          className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                        >
+                          <X size={16} className="text-slate-400" />
+                        </button>
+                        <button
+                          onClick={saveEditMember}
+                          disabled={!editMemberName.trim()}
+                          className="p-2 bg-blue-500/20 hover:bg-blue-500/30 disabled:opacity-40 rounded-lg transition-colors"
+                        >
+                          <Save size={16} className="text-blue-400" />
+                        </button>
+                      </div>
+                    </div>
                   ) : (
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white"
-                      style={{ backgroundColor: m.color }}
-                    >
-                      {m.name[0]}
+                    /* Normal member row */
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-white/5">
+                      {m.avatar ? (
+                        <img src={m.avatar} alt={m.name} className="w-8 h-8 rounded-full object-cover" />
+                      ) : (
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white"
+                          style={{ backgroundColor: m.color }}
+                        >
+                          {m.name[0]}
+                        </div>
+                      )}
+                      <span className="flex-1 text-sm">{m.name}</span>
+                      <div
+                        className="w-4 h-4 rounded-full border border-white/20"
+                        style={{ backgroundColor: m.color }}
+                      />
+                      <button
+                        onClick={() => startEditMember(m)}
+                        className="p-1 hover:bg-blue-500/20 rounded transition-colors"
+                      >
+                        <Pencil size={14} className="text-blue-400" />
+                      </button>
+                      <button
+                        onClick={() => deleteFamilyMember(m.id)}
+                        className="p-1 hover:bg-red-500/20 rounded transition-colors"
+                      >
+                        <Trash2 size={14} className="text-red-400" />
+                      </button>
                     </div>
                   )}
-                  <span className="flex-1 text-sm">{m.name}</span>
-                  <div
-                    className="w-4 h-4 rounded-full border border-white/20"
-                    style={{ backgroundColor: m.color }}
-                  />
-                  <button
-                    onClick={() => deleteFamilyMember(m.id)}
-                    className="p-1 hover:bg-red-500/20 rounded transition-colors"
-                  >
-                    <Trash2 size={14} className="text-red-400" />
-                  </button>
                 </div>
               ))}
             </div>

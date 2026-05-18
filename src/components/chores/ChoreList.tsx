@@ -35,6 +35,10 @@ export default function ChoreList({ selectedMemberId }: ChoreListProps) {
       completed.push(chore);
       return;
     }
+    if (!chore.dueDate) {
+      upcoming.push(chore);
+      return;
+    }
     const due = new Date(chore.dueDate);
     if (isToday(due)) today.push(chore);
     else if (isThisWeek(due, { weekStartsOn: 0 })) thisWeek.push(chore);
@@ -87,13 +91,13 @@ export default function ChoreList({ selectedMemberId }: ChoreListProps) {
   };
 
   const addChore = async () => {
-    if (!title.trim() || !dueDate) return;
+    if (!title.trim()) return;
     await db.chores.add({
       id: crypto.randomUUID(),
       title: title.trim(),
       description: description.trim(),
       assignedTo,
-      dueDate: new Date(dueDate),
+      dueDate: dueDate ? new Date(dueDate) : null,
       recurrence,
       completed: false,
       completedBy: '',
@@ -120,8 +124,8 @@ export default function ChoreList({ selectedMemberId }: ChoreListProps) {
     const assignedMembers = members.filter((m) =>
       chore.assignedTo.includes(m.id),
     );
-    const due = new Date(chore.dueDate);
-    const overdue = !chore.completed && isPast(due) && !isToday(due);
+    const due = chore.dueDate ? new Date(chore.dueDate) : null;
+    const overdue = !chore.completed && due !== null && isPast(due) && !isToday(due);
 
     return (
       <div
@@ -158,14 +162,16 @@ export default function ChoreList({ selectedMemberId }: ChoreListProps) {
             {chore.title}
           </p>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
-            <span
-              className={`text-sm flex items-center gap-1 ${
-                overdue ? 'text-red-400' : 'text-slate-400'
-              }`}
-            >
-              <Calendar className="w-3.5 h-3.5" />
-              {format(due, 'MMM d')}
-            </span>
+            {due && (
+              <span
+                className={`text-sm flex items-center gap-1 ${
+                  overdue ? 'text-red-400' : 'text-slate-400'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                {format(due, 'MMM d')}
+              </span>
+            )}
             <span className="text-amber-400 text-sm font-medium flex items-center gap-0.5">
               <Star className="w-3.5 h-3.5 fill-amber-400" />
               {chore.points}
@@ -324,7 +330,7 @@ export default function ChoreList({ selectedMemberId }: ChoreListProps) {
 
           <button
             onClick={addChore}
-            disabled={!title.trim() || !dueDate}
+            disabled={!title.trim()}
             className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-600 disabled:text-slate-400 text-white rounded-xl font-semibold text-lg transition-colors"
           >
             Add Chore

@@ -72,7 +72,7 @@ export interface Chore {
   title: string;
   description: string;
   assignedTo: string[];
-  dueDate: Date;
+  dueDate: Date | null;
   recurrence: ChoreRecurrence;
   completed: boolean;
   completedBy: string;
@@ -92,7 +92,7 @@ export interface Reward {
 export interface StickerRecord {
   id: string;
   memberId: string;
-  choreId: string;
+  choreId?: string;
   earnedAt: Date;
   points: number;
 }
