@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
-import { Gift, Plus, Star, X, Trophy } from 'lucide-react';
+import { Gift, Plus, Star, X, Trophy, Check } from 'lucide-react';
 
 interface RewardSystemProps {
   selectedMemberId: string | null;
@@ -13,6 +13,7 @@ export default function RewardSystem({ selectedMemberId }: RewardSystemProps) {
   const [description, setDescription] = useState('');
   const [pointsCost, setPointsCost] = useState(10);
   const [claimedId, setClaimedId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const rewards = useLiveQuery(() => db.rewards.toArray()) ?? [];
   const members = useLiveQuery(() => db.familyMembers.toArray()) ?? [];
@@ -45,18 +46,32 @@ export default function RewardSystem({ selectedMemberId }: RewardSystemProps) {
   };
 
   const addReward = async () => {
-    if (!title.trim()) return;
-    await db.rewards.add({
-      id: crypto.randomUUID(),
-      title: title.trim(),
-      description: description.trim(),
-      pointsCost,
-      claimedBy: null,
-    });
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    setSaveError(null);
+    try {
+      await db.rewards.add({
+        id: crypto.randomUUID(),
+        title: trimmed,
+        description: description.trim(),
+        pointsCost: pointsCost || 10,
+        claimedBy: null,
+      });
+      setTitle('');
+      setDescription('');
+      setPointsCost(10);
+      setShowForm(false);
+    } catch (err) {
+      setSaveError(String(err));
+    }
+  };
+
+  const cancelForm = () => {
+    setShowForm(false);
     setTitle('');
     setDescription('');
     setPointsCost(10);
-    setShowForm(false);
+    setSaveError(null);
   };
 
   const deleteReward = async (id: string) => {
@@ -66,29 +81,46 @@ export default function RewardSystem({ selectedMemberId }: RewardSystemProps) {
   const availableRewards = rewards.filter((r) => r.claimedBy === null);
 
   return (
-    <div className="flex flex-col h-full">
-      {/* header */}
-      <div className="flex items-center justify-between mb-4">
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* header — always visible */}
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <h2 className="text-2xl font-bold text-white flex items-center gap-2">
           <Gift className="w-6 h-6 text-purple-400" />
           Rewards
         </h2>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-medium transition-colors"
-        >
-          {showForm ? (
-            <X className="w-5 h-5" />
-          ) : (
+        {!showForm ? (
+          <button
+            onClick={() => { setSaveError(null); setShowForm(true); }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-medium transition-colors"
+          >
             <Plus className="w-5 h-5" />
-          )}
-          {showForm ? 'Cancel' : 'Add'}
-        </button>
+            Add
+          </button>
+        ) : (
+          /* Save + Cancel in header so they're always visible even with keyboard open */
+          <div className="flex gap-2">
+            <button
+              onClick={cancelForm}
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl font-medium transition-colors"
+            >
+              <X className="w-4 h-4" />
+              Cancel
+            </button>
+            <button
+              onClick={addReward}
+              disabled={!title.trim()}
+              className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-600 disabled:text-slate-400 text-white rounded-xl font-medium transition-colors"
+            >
+              <Check className="w-4 h-4" />
+              Save
+            </button>
+          </div>
+        )}
       </div>
 
       {/* selected member balance */}
       {selectedMember && (
-        <div className="bg-slate-800 rounded-xl p-4 mb-4 flex items-center gap-3">
+        <div className="bg-slate-800 rounded-xl p-4 mb-4 flex items-center gap-3 flex-shrink-0">
           <div
             className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white overflow-hidden"
             style={{ backgroundColor: selectedMember.color }}
@@ -113,14 +145,16 @@ export default function RewardSystem({ selectedMemberId }: RewardSystemProps) {
         </div>
       )}
 
-      {/* inline add form */}
+      {/* inline add form — no submit button at bottom, Save is in the header */}
       {showForm && (
-        <div className="bg-slate-800 rounded-xl p-5 mb-4 space-y-3 animate-fade-in-up">
+        <div className="bg-slate-800 rounded-xl p-4 mb-4 space-y-3 flex-shrink-0">
           <input
             type="text"
-            placeholder="Reward title"
+            placeholder="Reward title *"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addReward()}
+            autoFocus
             className="w-full px-4 py-3 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-purple-500 focus:outline-none text-lg"
           />
           <input
@@ -128,31 +162,26 @@ export default function RewardSystem({ selectedMemberId }: RewardSystemProps) {
             placeholder="Description (optional)"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addReward()}
             className="w-full px-4 py-3 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-purple-500 focus:outline-none"
           />
           <div>
-            <label className="text-sm text-slate-400 mb-1 block">
-              Point Cost
-            </label>
+            <label className="text-sm text-slate-400 mb-1 block">Point Cost</label>
             <input
               type="number"
               min={1}
               value={pointsCost}
-              onChange={(e) => setPointsCost(Number(e.target.value))}
+              onChange={(e) => setPointsCost(Math.max(1, Number(e.target.value) || 1))}
               className="w-full px-4 py-3 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-purple-500 focus:outline-none"
             />
           </div>
-          <button
-            onClick={addReward}
-            disabled={!title.trim()}
-            className="w-full py-3 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-600 disabled:text-slate-400 text-white rounded-xl font-semibold transition-colors"
-          >
-            Add Reward
-          </button>
+          {saveError && (
+            <p className="text-red-400 text-sm">{saveError}</p>
+          )}
         </div>
       )}
 
-      {/* reward grid */}
+      {/* reward grid — scrolls */}
       <div className="flex-1 overflow-y-auto">
         <div className="grid grid-cols-2 gap-3">
           {availableRewards.map((reward) => {
@@ -198,7 +227,7 @@ export default function RewardSystem({ selectedMemberId }: RewardSystemProps) {
           })}
         </div>
 
-        {availableRewards.length === 0 && (
+        {availableRewards.length === 0 && !showForm && (
           <div className="text-center text-slate-500 py-12">
             <Gift className="w-12 h-12 mx-auto mb-3 opacity-50" />
             <p className="text-lg">No rewards available</p>
