@@ -172,6 +172,7 @@ export interface DashboardSettings {
   nightModeStart: string;
   nightModeEnd: string;
   screenSaverTimeout: number;
+  screenSaverEnabled: boolean;
   openaiApiKey: string;
   aiProvider: AiProvider;
   azureEndpoint: string;

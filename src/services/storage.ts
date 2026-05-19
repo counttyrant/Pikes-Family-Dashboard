@@ -28,6 +28,7 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   nightModeStart: '21:00',
   nightModeEnd: '06:00',
   screenSaverTimeout: 300,
+  screenSaverEnabled: true,
   openaiApiKey: '',
   aiProvider: 'openai',
   azureEndpoint: '',

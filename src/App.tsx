@@ -192,8 +192,13 @@ function AppContent() {
   ]);
 
   // Screen saver / idle detection
-  const screenSaverTimeout = settings?.screenSaverTimeout || 300;
+  const screenSaverEnabled = settings?.screenSaverEnabled ?? true;
+  const screenSaverTimeout = settings?.screenSaverTimeout ?? 300;
   useEffect(() => {
+    if (!screenSaverEnabled) {
+      setIsIdle(false);
+      return;
+    }
     const timeout = screenSaverTimeout * 1000
     let timer: ReturnType<typeof setTimeout>
 
@@ -211,7 +216,7 @@ function AppContent() {
       clearTimeout(timer)
       events.forEach(e => window.removeEventListener(e, reset))
     }
-  }, [screenSaverTimeout])
+  }, [screenSaverEnabled, screenSaverTimeout])
 
   // Auto picture mode on idle — paused while settings panel is open or screen is off
   const autoPictureMode = settings?.autoPictureMode ?? true;

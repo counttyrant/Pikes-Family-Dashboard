@@ -1220,12 +1220,25 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
                 type="time"
               />
             </div>
-            <InputField
-              label="Screen saver timeout (seconds)"
-              value={String(settings.screenSaverTimeout)}
-              onChange={(v) => save({ screenSaverTimeout: parseInt(v) || 300 })}
-              type="number"
-            />
+            <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
+              <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.screenSaverEnabled ?? true}
+                  onChange={(e) => save({ screenSaverEnabled: e.target.checked })}
+                  className="accent-blue-500"
+                />
+                Black screen saver on idle
+              </label>
+              {(settings.screenSaverEnabled ?? true) && (
+                <InputField
+                  label="Screen saver timeout (seconds)"
+                  value={String(settings.screenSaverTimeout ?? 300)}
+                  onChange={(v) => save({ screenSaverTimeout: Math.max(30, parseInt(v) || 300) })}
+                  type="number"
+                />
+              )}
+            </div>
             <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
               <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer">
                 <input
