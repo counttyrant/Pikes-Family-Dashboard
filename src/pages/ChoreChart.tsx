@@ -207,7 +207,7 @@ export default function ChoreChart() {
               ))}
             </div>
 
-            {/* Hidden numeric input — triggers the device soft keyboard */}
+            {/* Visible numeric input — triggers the device soft keyboard on tap */}
             <input
               type="tel"
               inputMode="numeric"
@@ -216,24 +216,14 @@ export default function ChoreChart() {
               value={pinInput}
               onChange={(e) => handlePinChange(e.target.value)}
               autoFocus
-              className="opacity-0 absolute w-0 h-0"
+              placeholder="Tap to enter code"
+              className={`w-full py-3 px-4 rounded-xl text-center text-lg font-mono tracking-widest border outline-none transition-colors mb-4 bg-slate-700 text-white placeholder-slate-500 ${
+                pinError
+                  ? 'border-red-500 bg-red-500/10 text-red-400'
+                  : 'border-slate-600 focus:border-purple-400'
+              }`}
               aria-label="Enter passcode"
             />
-
-            {/* Tap-to-focus button (visible, triggers focus on the hidden input) */}
-            <button
-              className={`w-full py-3 rounded-xl text-center font-medium transition-colors mb-4 ${
-                pinError
-                  ? 'bg-red-500/20 text-red-400 border border-red-500/40'
-                  : 'bg-slate-700 text-slate-300 border border-slate-600 hover:bg-slate-600'
-              }`}
-              onClick={(e) => {
-                const input = (e.currentTarget.parentElement as HTMLElement).querySelector('input');
-                input?.focus();
-              }}
-            >
-              {pinError ? 'Incorrect — try again' : pinInput.length > 0 ? 'Tap to continue typing' : 'Tap to enter passcode'}
-            </button>
 
             <button
               onClick={() => { setShowUnlockModal(false); setPinInput(''); setPinError(false); }}
