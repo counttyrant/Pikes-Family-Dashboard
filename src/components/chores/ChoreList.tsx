@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { isToday, isThisWeek, isPast, format } from 'date-fns';
@@ -18,6 +18,10 @@ export default function ChoreList({ selectedMemberId, locked = false }: ChoreLis
   const [dueDate, setDueDate] = useState('');
   const [recurrence, setRecurrence] = useState<ChoreRecurrence>('none');
   const [points, setPoints] = useState(1);
+  // flash: choreId → points earned, shown briefly then cleared
+  const [flashMap, setFlashMap] = useState<Record<string, number>>({});
+  // debounce: choreId → timestamp of last completion
+  const lastCompletedRef = useRef<Record<string, number>>({});
 
   const members = useLiveQuery(() => db.familyMembers.toArray()) ?? [];
   const allChores = useLiveQuery(() => db.chores.toArray()) ?? [];
@@ -29,13 +33,8 @@ export default function ChoreList({ selectedMemberId, locked = false }: ChoreLis
   const today: Chore[] = [];
   const thisWeek: Chore[] = [];
   const upcoming: Chore[] = [];
-  const completed: Chore[] = [];
 
   chores.forEach((chore) => {
-    if (chore.completed) {
-      completed.push(chore);
-      return;
-    }
     if (!chore.dueDate) {
       upcoming.push(chore);
       return;
@@ -56,34 +55,32 @@ export default function ChoreList({ selectedMemberId, locked = false }: ChoreLis
 
   /* ── actions ─────────────────────────────────────────────────────────── */
 
-  const toggleComplete = async (chore: Chore) => {
-    if (chore.completed) {
-      await db.chores.update(chore.id, {
-        completed: false,
-        completedBy: '',
-        completedAt: null,
+  const completeChore = async (chore: Chore) => {
+    // Debounce: ignore taps within 2s of last completion
+    const now = Date.now();
+    if (now - (lastCompletedRef.current[chore.id] ?? 0) < 2000) return;
+    lastCompletedRef.current[chore.id] = now;
+
+    const completedBy = selectedMemberId || chore.assignedTo[0] || '';
+    if (completedBy) {
+      await db.stickerRecords.add({
+        id: crypto.randomUUID(),
+        memberId: completedBy,
+        choreId: chore.id,
+        earnedAt: new Date(),
+        points: chore.points,
       });
-      await db.stickerRecords
-        .where('choreId')
-        .equals(chore.id)
-        .delete();
-    } else {
-      const completedBy = selectedMemberId || chore.assignedTo[0] || '';
-      await db.chores.update(chore.id, {
-        completed: true,
-        completedBy,
-        completedAt: new Date(),
-      });
-      if (completedBy) {
-        await db.stickerRecords.add({
-          id: crypto.randomUUID(),
-          memberId: completedBy,
-          choreId: chore.id,
-          earnedAt: new Date(),
-          points: chore.points,
-        });
-      }
     }
+
+    // Flash the award, then clear
+    setFlashMap((prev) => ({ ...prev, [chore.id]: chore.points }));
+    setTimeout(() => {
+      setFlashMap((prev) => {
+        const next = { ...prev };
+        delete next[chore.id];
+        return next;
+      });
+    }, 1200);
   };
 
   const deleteChore = async (id: string) => {
@@ -126,40 +123,42 @@ export default function ChoreList({ selectedMemberId, locked = false }: ChoreLis
       chore.assignedTo.includes(m.id),
     );
     const due = chore.dueDate ? new Date(chore.dueDate) : null;
-    const overdue = !chore.completed && due !== null && isPast(due) && !isToday(due);
+    const overdue = due !== null && isPast(due) && !isToday(due);
+    const flashing = !!flashMap[chore.id];
 
     return (
       <div
         key={chore.id}
         className={`flex items-center gap-3 p-4 rounded-xl transition-all duration-300 ${
-          chore.completed
-            ? 'bg-slate-800/50 opacity-60'
-            : overdue
-              ? 'bg-red-900/30 border border-red-500/30'
-              : 'bg-slate-800 hover:bg-slate-700'
-        }`}
+          overdue
+            ? 'bg-red-900/30 border border-red-500/30'
+            : 'bg-slate-800 hover:bg-slate-700'
+        } ${flashing ? 'scale-[0.97] opacity-70' : ''}`}
       >
-        {/* completion toggle */}
+        {/* completion button */}
         <button
-          onClick={() => toggleComplete(chore)}
-          className={`flex-shrink-0 w-11 h-11 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${
-            chore.completed
+          onClick={() => completeChore(chore)}
+          className={`relative flex-shrink-0 w-11 h-11 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${
+            flashing
               ? 'bg-emerald-500 border-emerald-500'
               : 'border-slate-500 hover:border-emerald-400'
           }`}
         >
-          {chore.completed && (
-            <Check className="w-6 h-6 text-white animate-checkmark" />
-          )}
+          {flashing ? (
+            <Check className="w-6 h-6 text-white" />
+          ) : null}
         </button>
 
+        {/* flash overlay — shows "+N ⭐" briefly */}
+        {flashing && (
+          <div className="absolute left-16 z-10 bg-amber-400 text-slate-900 text-sm font-bold px-2 py-0.5 rounded-full animate-bounce pointer-events-none">
+            +{flashMap[chore.id]} ⭐
+          </div>
+        )}
+
         {/* content */}
-        <div className="flex-1 min-w-0">
-          <p
-            className={`font-semibold text-lg leading-snug ${
-              chore.completed ? 'line-through text-slate-400' : 'text-white'
-            }`}
-          >
+        <div className="flex-1 min-w-0 relative">
+          <p className="font-semibold text-lg leading-snug text-white">
             {chore.title}
           </p>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
@@ -344,7 +343,6 @@ export default function ChoreList({ selectedMemberId, locked = false }: ChoreLis
         {renderGroup('Today', today)}
         {renderGroup('This Week', thisWeek)}
         {renderGroup('Upcoming', upcoming)}
-        {completed.length > 0 && renderGroup('Completed', completed)}
 
         {chores.length === 0 && (
           <div className="text-center text-slate-500 py-12">

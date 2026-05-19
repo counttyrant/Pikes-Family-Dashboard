@@ -46,9 +46,8 @@ export default function RewardSystem({ selectedMemberId, locked = true, onActivi
   const touch = () => onActivity?.();
 
   const getAvailablePoints = (memberId: string) => {
-    const earned = stickers.filter((s) => s.memberId === memberId).reduce((sum, s) => sum + s.points, 0);
-    const spent = rewards.filter((r) => r.claimedBy === memberId).reduce((sum, r) => sum + r.pointsCost, 0);
-    return earned - spent;
+    // Sum all sticker records (positive = earned, negative = spent on rewards)
+    return stickers.filter((s) => s.memberId === memberId).reduce((sum, s) => sum + s.points, 0);
   };
 
   const selectedMember = members.find((m) => m.id === selectedMemberId);
@@ -60,7 +59,13 @@ export default function RewardSystem({ selectedMemberId, locked = true, onActivi
     if (!reward || getAvailablePoints(selectedMemberId) < reward.pointsCost) return;
     touch();
     setClaimedId(rewardId);
-    await db.rewards.update(rewardId, { claimedBy: selectedMemberId });
+    // Deduct points via a negative sticker record — reward stays available for future claims
+    await db.stickerRecords.add({
+      id: crypto.randomUUID(),
+      memberId: selectedMemberId,
+      earnedAt: new Date(),
+      points: -reward.pointsCost,
+    });
     setTimeout(() => setClaimedId(null), 600);
   };
 
@@ -103,7 +108,7 @@ export default function RewardSystem({ selectedMemberId, locked = true, onActivi
     await db.rewards.delete(id);
   };
 
-  const availableRewards = rewards.filter((r) => r.claimedBy === null);
+  // All rewards stay in pool (repeatable); no availableRewards filter needed
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -223,8 +228,9 @@ export default function RewardSystem({ selectedMemberId, locked = true, onActivi
       {/* reward grid */}
       <div className="flex-1 overflow-y-auto">
         <div className="grid grid-cols-2 gap-3">
-          {availableRewards.map((reward) => {
+          {rewards.map((reward) => {
             const canClaim = !locked && !!selectedMemberId && availablePoints >= reward.pointsCost;
+            const notEnough = !locked && !!selectedMemberId && availablePoints < reward.pointsCost;
             const isEmoji = reward.imageUrl && !reward.imageUrl.startsWith('http') && !reward.imageUrl.startsWith('data:');
             return (
               <div
@@ -259,16 +265,24 @@ export default function RewardSystem({ selectedMemberId, locked = true, onActivi
                 <button
                   onClick={() => claimReward(reward.id)}
                   disabled={!canClaim}
-                  className="mt-3 py-2.5 rounded-lg font-semibold transition-all active:scale-95 disabled:bg-slate-700 disabled:text-slate-500 bg-emerald-600 hover:bg-emerald-500 text-white"
+                  className={`mt-3 py-2.5 rounded-lg font-semibold transition-all active:scale-95 ${
+                    locked
+                      ? 'bg-slate-700 text-slate-500'
+                      : notEnough
+                        ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                        : canClaim
+                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                          : 'bg-slate-700 text-slate-500'
+                  }`}
                 >
-                  {locked ? 'Locked' : selectedMemberId ? 'Claim' : 'Select member'}
+                  {locked ? 'Locked' : notEnough ? 'Not enough ⭐' : selectedMemberId ? 'Claim' : 'Select member'}
                 </button>
               </div>
             );
           })}
         </div>
 
-        {availableRewards.length === 0 && !showForm && (
+        {rewards.length === 0 && !showForm && (
           <div className="text-center text-slate-500 py-12">
             <Gift className="w-12 h-12 mx-auto mb-3 opacity-50" />
             <p className="text-lg">No rewards available</p>

@@ -23,6 +23,11 @@ a, button, [role="button"], input, select, label { touch-action: manipulation; }
 /* Prevent touch interference on resize handles */
 .react-grid-item > .react-resizable-handle { touch-action: none; }
 
+/* Allow Swiper to detect horizontal swipes when grid is not in edit mode.
+   Edit mode re-applies touch-action:none via .rgl-edit-mode selector. */
+.react-grid-item { touch-action: pan-x pan-y; }
+.rgl-edit-mode .react-grid-item { touch-action: none; }
+
 /* Larger resize handles for touch — 44px tap target */
 .react-grid-item > .react-resizable-handle {
   width: 44px !important;

@@ -287,17 +287,18 @@ export default function ChoreChart() {
 
             <div className="space-y-4">
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">Points</label>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  value={givePointsAmount}
-                  onChange={(e) => setGivePointsAmount(Math.max(1, Number(e.target.value) || 1))}
-                  onKeyDown={(e) => e.key === 'Enter' && saveGivePoints()}
-                  className="w-full rounded-lg bg-white/10 border border-white/10 px-3 py-3 text-white text-2xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  autoFocus
-                />
+                <label className="text-xs text-slate-400 mb-2 block">Points</label>
+                <div className="flex items-center justify-center gap-4">
+                  <button
+                    onClick={() => setGivePointsAmount((a) => Math.max(1, a - 1))}
+                    className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 active:scale-95 text-white text-4xl font-bold flex items-center justify-center transition-all"
+                  >−</button>
+                  <span className="text-white text-5xl font-bold w-20 text-center">{givePointsAmount}</span>
+                  <button
+                    onClick={() => setGivePointsAmount((a) => a + 1)}
+                    className="w-16 h-16 rounded-full bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-4xl font-bold flex items-center justify-center transition-all"
+                  >+</button>
+                </div>
               </div>
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">Reason (optional)</label>

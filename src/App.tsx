@@ -194,6 +194,7 @@ function AppContent() {
   // Screen saver / idle detection
   const screenSaverEnabled = settings?.screenSaverEnabled ?? true;
   const screenSaverTimeout = settings?.screenSaverTimeout ?? 300;
+  const autoPictureModeEnabled = settings?.autoPictureMode ?? true;
   useEffect(() => {
     if (!screenSaverEnabled) {
       setIsIdle(false);
@@ -205,7 +206,14 @@ function AppContent() {
     const reset = () => {
       setIsIdle(false)
       clearTimeout(timer)
-      timer = setTimeout(() => setIsIdle(true), timeout)
+      timer = setTimeout(() => {
+        // Prefer picture mode over black screen when auto picture mode is on
+        if (autoPictureModeEnabled) {
+          setPictureMode(true)
+        } else {
+          setIsIdle(true)
+        }
+      }, timeout)
     }
 
     const events = ['mousemove', 'mousedown', 'touchstart', 'keydown', 'scroll']
@@ -216,7 +224,7 @@ function AppContent() {
       clearTimeout(timer)
       events.forEach(e => window.removeEventListener(e, reset))
     }
-  }, [screenSaverEnabled, screenSaverTimeout])
+  }, [screenSaverEnabled, screenSaverTimeout, autoPictureModeEnabled])
 
   // Auto picture mode on idle — paused while settings panel is open or screen is off
   const autoPictureMode = settings?.autoPictureMode ?? true;

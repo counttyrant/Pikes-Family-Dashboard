@@ -22,13 +22,6 @@ export default function FamilyMemberCard({
 
   const totalPoints = stickers.reduce((sum, s) => sum + s.points, 0);
 
-  const recentStickers = [...stickers]
-    .sort(
-      (a, b) =>
-        new Date(b.earnedAt).getTime() - new Date(a.earnedAt).getTime(),
-    )
-    .slice(0, 5);
-
   const initials = member.name
     .split(' ')
     .map((n) => n[0])
@@ -72,18 +65,6 @@ export default function FamilyMemberCard({
         <Star className="w-4 h-4 fill-amber-400" />
         {totalPoints}
       </div>
-
-      {/* mini sticker collection */}
-      {recentStickers.length > 0 && (
-        <div className="flex gap-0.5">
-          {recentStickers.map((s) => (
-            <Star
-              key={s.id}
-              className="w-3.5 h-3.5 fill-amber-400 text-amber-400"
-            />
-          ))}
-        </div>
-      )}
     </button>
   );
 }
