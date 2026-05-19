@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import {
@@ -21,6 +22,7 @@ export default function ChoreChart() {
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [givePointsMemberId, setGivePointsMemberId] = useState<string | null>(null);
   const [givePointsAmount, setGivePointsAmount] = useState(5);
+  const [givePointsRemove, setGivePointsRemove] = useState(false);
   const [givePointsReason, setGivePointsReason] = useState('');
   const [givePointsError, setGivePointsError] = useState('');
 
@@ -73,6 +75,7 @@ export default function ChoreChart() {
   const openGivePoints = (memberId: string) => {
     setGivePointsMemberId(memberId);
     setGivePointsAmount(5);
+    setGivePointsRemove(false);
     setGivePointsReason('');
     setGivePointsError('');
   };
@@ -85,7 +88,7 @@ export default function ChoreChart() {
         id: crypto.randomUUID(),
         memberId: givePointsMemberId,
         earnedAt: new Date(),
-        points: pts,
+        points: givePointsRemove ? -pts : pts,
       });
       setGivePointsMemberId(null);
     } catch (e) {
@@ -183,8 +186,8 @@ export default function ChoreChart() {
         </div>
       </div>
 
-      {/* ── Unlock passcode modal─────────────────────────────────────────── */}
-      {showUnlockModal && (
+      {/* ── Unlock passcode modal (portal — renders to body, outside Swiper transform) ── */}
+      {showUnlockModal && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
           onClick={(e) => e.target === e.currentTarget && (setShowUnlockModal(false), setPinInput(''))}
@@ -236,13 +239,13 @@ export default function ChoreChart() {
             </button>
           </div>
         </div>
-      )}
+      , document.body)}
 
-      {/* Give Points modal */}
-      {givePointsMemberId && givePointsMember && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      {/* Give Points modal (portal — renders to body, outside Swiper transform) */}
+      {givePointsMemberId && givePointsMember && createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-slate-800 rounded-2xl p-6 w-80 shadow-2xl border border-slate-700">
-            <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div
                   className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white overflow-hidden"
@@ -255,7 +258,7 @@ export default function ChoreChart() {
                   )}
                 </div>
                 <h2 className="text-lg font-bold text-white">
-                  Give {givePointsMember.name} Points
+                  {givePointsRemove ? 'Remove' : 'Give'} {givePointsMember.name} Points
                 </h2>
               </div>
               <button
@@ -266,16 +269,33 @@ export default function ChoreChart() {
               </button>
             </div>
 
+            {/* Give / Remove toggle */}
+            <div className="flex rounded-xl overflow-hidden border border-slate-600 mb-4">
+              <button
+                onClick={() => setGivePointsRemove(false)}
+                className={`flex-1 py-2 text-sm font-semibold transition-colors ${!givePointsRemove ? 'bg-amber-500 text-white' : 'bg-slate-700 text-slate-400 hover:text-white'}`}
+              >
+                ⭐ Give Points
+              </button>
+              <button
+                onClick={() => setGivePointsRemove(true)}
+                className={`flex-1 py-2 text-sm font-semibold transition-colors ${givePointsRemove ? 'bg-red-500 text-white' : 'bg-slate-700 text-slate-400 hover:text-white'}`}
+              >
+                ➖ Remove Points
+              </button>
+            </div>
+
             <div className="space-y-4">
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">Points</label>
                 <input
                   type="number"
+                  inputMode="numeric"
                   min={1}
                   value={givePointsAmount}
-                  onChange={(e) => setGivePointsAmount(Number(e.target.value))}
+                  onChange={(e) => setGivePointsAmount(Math.max(1, Number(e.target.value) || 1))}
                   onKeyDown={(e) => e.key === 'Enter' && saveGivePoints()}
-                  className="w-full rounded-lg bg-white/10 border border-white/10 px-3 py-2 text-white text-lg font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full rounded-lg bg-white/10 border border-white/10 px-3 py-3 text-white text-2xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-amber-500"
                   autoFocus
                 />
               </div>
@@ -295,14 +315,14 @@ export default function ChoreChart() {
               )}
               <button
                 onClick={saveGivePoints}
-                className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-bold text-lg transition-colors"
+                className={`w-full py-3 rounded-xl font-bold text-lg transition-colors text-white ${givePointsRemove ? 'bg-red-500 hover:bg-red-400' : 'bg-amber-500 hover:bg-amber-400'}`}
               >
-                Give {Math.max(1, givePointsAmount)} Points ⭐
+                {givePointsRemove ? `Remove ${Math.max(1, givePointsAmount)} Points` : `Give ${Math.max(1, givePointsAmount)} Points ⭐`}
               </button>
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }

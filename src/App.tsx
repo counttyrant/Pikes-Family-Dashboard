@@ -511,6 +511,7 @@ function AppContent() {
             resistance={true}
             resistanceRatio={0.85}
             noSwipingSelector=".no-swipe"
+            touchStartPreventDefault={false}
             onSwiper={(sw) => { swiperRef.current = sw }}
             onSlideChange={(sw) => setActiveIndex(sw.realIndex)}
           >

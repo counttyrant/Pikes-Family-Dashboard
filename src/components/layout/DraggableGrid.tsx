@@ -72,6 +72,10 @@ const GRID_CSS = `
 .rgl-edit-mode .react-grid-item {
   touch-action: none;
 }
+/* Allow Swiper to detect horizontal swipes on static (non-edit) items */
+.react-grid-item {
+  touch-action: pan-x pan-y;
+}
 `;
 
 /* -------------------------------------------------------------------------- */
