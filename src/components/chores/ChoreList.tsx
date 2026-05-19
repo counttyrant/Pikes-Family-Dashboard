@@ -7,9 +7,10 @@ import type { Chore, FamilyMember, ChoreRecurrence } from '../../types';
 
 interface ChoreListProps {
   selectedMemberId: string | null;
+  locked?: boolean;
 }
 
-export default function ChoreList({ selectedMemberId }: ChoreListProps) {
+export default function ChoreList({ selectedMemberId, locked = false }: ChoreListProps) {
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -201,13 +202,15 @@ export default function ChoreList({ selectedMemberId }: ChoreListProps) {
           ))}
         </div>
 
-        {/* delete */}
-        <button
-          onClick={() => deleteChore(chore.id)}
-          className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center text-slate-500 hover:text-red-400 hover:bg-red-900/30 transition-colors"
-        >
-          <Trash2 className="w-5 h-5" />
-        </button>
+        {/* delete — hidden when locked */}
+        {!locked && (
+          <button
+            onClick={() => deleteChore(chore.id)}
+            className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center text-slate-500 hover:text-red-400 hover:bg-red-900/30 transition-colors"
+          >
+            <Trash2 className="w-5 h-5" />
+          </button>
+        )}
       </div>
     );
   };
@@ -231,21 +234,19 @@ export default function ChoreList({ selectedMemberId }: ChoreListProps) {
       {/* header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-bold text-white">Chores</h2>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium transition-colors"
-        >
-          {showForm ? (
-            <X className="w-5 h-5" />
-          ) : (
-            <Plus className="w-5 h-5" />
-          )}
-          {showForm ? 'Cancel' : 'Add Chore'}
-        </button>
+        {!locked && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium transition-colors"
+          >
+            {showForm ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+            {showForm ? 'Cancel' : 'Add Chore'}
+          </button>
+        )}
       </div>
 
-      {/* inline add form */}
-      {showForm && (
+      {/* inline add form — hidden when locked */}
+      {showForm && !locked && (
         <div className="bg-slate-800 rounded-xl p-5 mb-5 space-y-4 animate-fade-in-up">
           <input
             type="text"

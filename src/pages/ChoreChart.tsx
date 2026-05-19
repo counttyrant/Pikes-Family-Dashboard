@@ -1,27 +1,72 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import {
   Settings,
-  ChevronDown,
-  ChevronUp,
   ClipboardList,
   Users,
   Gift,
   X,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import FamilyMemberCard from '../components/chores/FamilyMember';
 import ChoreList from '../components/chores/ChoreList';
 import RewardSystem from '../components/chores/RewardSystem';
-import Leaderboard from '../components/chores/Leaderboard';
+
+const PASSCODE = '6554';
+const AUTO_LOCK_MS = 3 * 60 * 1000;
 
 export default function ChoreChart() {
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
-  const [showLeaderboard, setShowLeaderboard] = useState(true);
   const [givePointsMemberId, setGivePointsMemberId] = useState<string | null>(null);
   const [givePointsAmount, setGivePointsAmount] = useState(5);
   const [givePointsReason, setGivePointsReason] = useState('');
   const [givePointsError, setGivePointsError] = useState('');
+
+  // ── Rewards lock ────────────────────────────────────────────────────────
+  const [rewardsLocked, setRewardsLocked] = useState(true);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState(false);
+  const autoLockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const resetAutoLock = useCallback(() => {
+    if (autoLockTimerRef.current) clearTimeout(autoLockTimerRef.current);
+    autoLockTimerRef.current = setTimeout(() => setRewardsLocked(true), AUTO_LOCK_MS);
+  }, []);
+
+  useEffect(() => () => { if (autoLockTimerRef.current) clearTimeout(autoLockTimerRef.current); }, []);
+
+  const handlePinChange = (val: string) => {
+    const digits = val.replace(/\D/g, '').slice(0, 4);
+    setPinInput(digits);
+    setPinError(false);
+    if (digits.length === 4) {
+      if (digits === PASSCODE) {
+        setRewardsLocked(false);
+        setShowUnlockModal(false);
+        setPinInput('');
+        resetAutoLock();
+      } else {
+        setPinError(true);
+        setTimeout(() => { setPinInput(''); setPinError(false); }, 900);
+      }
+    }
+  };
+
+  const handleLockButton = () => {
+    if (rewardsLocked) {
+      // Show unlock modal
+      setPinInput('');
+      setPinError(false);
+      setShowUnlockModal(true);
+    } else {
+      // Lock immediately
+      if (autoLockTimerRef.current) clearTimeout(autoLockTimerRef.current);
+      setRewardsLocked(true);
+    }
+  };
 
   const members = useLiveQuery(() => db.familyMembers.toArray()) ?? [];
 
@@ -59,9 +104,23 @@ export default function ChoreChart() {
           <ClipboardList className="w-7 h-7 text-blue-400" />
           <h1 className="text-3xl font-bold text-white">Chore Chart</h1>
         </div>
-        <button className="w-11 h-11 flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
-          <Settings className="w-6 h-6" />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Rewards lock toggle */}
+          <button
+            onClick={handleLockButton}
+            title={rewardsLocked ? 'Unlock rewards management' : 'Lock rewards'}
+            className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors ${
+              rewardsLocked
+                ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                : 'text-emerald-400 bg-emerald-500/10 hover:bg-red-500/10 hover:text-red-400'
+            }`}
+          >
+            {rewardsLocked ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
+          </button>
+          <button className="w-11 h-11 flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+            <Settings className="w-6 h-6" />
+          </button>
+        </div>
       </header>
 
       {/* family members row */}
@@ -71,7 +130,7 @@ export default function ChoreChart() {
           <span className="text-sm font-medium text-slate-400">
             Family Members
           </span>
-          {selectedMemberId && (
+          {selectedMemberId && !rewardsLocked && (
             <button
               onClick={() => openGivePoints(selectedMemberId)}
               className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-sm font-medium transition-colors"
@@ -110,32 +169,81 @@ export default function ChoreChart() {
       {/* main content: chores 60% | rewards 40% */}
       <div className="flex-1 flex overflow-hidden px-6 py-4 gap-6">
         <div className="w-3/5 overflow-hidden flex flex-col">
-          <ChoreList selectedMemberId={selectedMemberId} />
+          <ChoreList selectedMemberId={selectedMemberId} locked={rewardsLocked} />
         </div>
         <div className="w-2/5 overflow-hidden flex flex-col">
-          <RewardSystem selectedMemberId={selectedMemberId} />
+          <RewardSystem
+            selectedMemberId={selectedMemberId}
+            locked={rewardsLocked}
+            onActivity={resetAutoLock}
+          />
         </div>
       </div>
 
-      {/* collapsible leaderboard */}
-      <div className="border-t border-slate-800">
-        <button
-          onClick={() => setShowLeaderboard(!showLeaderboard)}
-          className="w-full flex items-center justify-center gap-2 py-3 text-slate-400 hover:text-white transition-colors"
+      {/* ── Unlock passcode modal─────────────────────────────────────────── */}
+      {showUnlockModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={(e) => e.target === e.currentTarget && (setShowUnlockModal(false), setPinInput(''))}
         >
-          <span className="font-medium">Leaderboard</span>
-          {showLeaderboard ? (
-            <ChevronDown className="w-5 h-5" />
-          ) : (
-            <ChevronUp className="w-5 h-5" />
-          )}
-        </button>
-        {showLeaderboard && (
-          <div className="px-6 pb-4 animate-fade-in-up">
-            <Leaderboard />
+          <div className="bg-slate-800 rounded-2xl p-8 w-72 shadow-2xl border border-slate-700 flex flex-col items-center">
+            <Lock className="w-8 h-8 text-purple-400 mb-3" />
+            <h2 className="text-white font-bold text-xl mb-1">Unlock Rewards</h2>
+            <p className="text-slate-400 text-sm mb-6 text-center">Enter the passcode to manage rewards</p>
+
+            {/* PIN dots */}
+            <div className="flex gap-3 mb-5">
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className={`w-5 h-5 rounded-full border-2 transition-all duration-100 ${
+                    i < pinInput.length
+                      ? pinError
+                        ? 'bg-red-500 border-red-500'
+                        : 'bg-purple-400 border-purple-400'
+                      : 'border-slate-600'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {/* Hidden numeric input — triggers the device soft keyboard */}
+            <input
+              type="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={4}
+              value={pinInput}
+              onChange={(e) => handlePinChange(e.target.value)}
+              autoFocus
+              className="opacity-0 absolute w-0 h-0"
+              aria-label="Enter passcode"
+            />
+
+            {/* Tap-to-focus button (visible, triggers focus on the hidden input) */}
+            <button
+              className={`w-full py-3 rounded-xl text-center font-medium transition-colors mb-4 ${
+                pinError
+                  ? 'bg-red-500/20 text-red-400 border border-red-500/40'
+                  : 'bg-slate-700 text-slate-300 border border-slate-600 hover:bg-slate-600'
+              }`}
+              onClick={(e) => {
+                const input = (e.currentTarget.parentElement as HTMLElement).querySelector('input');
+                input?.focus();
+              }}
+            >
+              {pinError ? 'Incorrect — try again' : pinInput.length > 0 ? 'Tap to continue typing' : 'Tap to enter passcode'}
+            </button>
+
+            <button
+              onClick={() => { setShowUnlockModal(false); setPinInput(''); setPinError(false); }}
+              className="text-slate-500 hover:text-slate-300 text-sm transition-colors"
+            >
+              Cancel
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Give Points modal */}
       {givePointsMemberId && givePointsMember && (
