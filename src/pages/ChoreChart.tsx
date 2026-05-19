@@ -105,18 +105,6 @@ export default function ChoreChart() {
           <h1 className="text-3xl font-bold text-white">Chore Chart</h1>
         </div>
         <div className="flex items-center gap-2">
-          {/* Rewards lock toggle */}
-          <button
-            onClick={handleLockButton}
-            title={rewardsLocked ? 'Unlock rewards management' : 'Lock rewards'}
-            className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors ${
-              rewardsLocked
-                ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                : 'text-emerald-400 bg-emerald-500/10 hover:bg-red-500/10 hover:text-red-400'
-            }`}
-          >
-            {rewardsLocked ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
-          </button>
           <button className="w-11 h-11 flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
             <Settings className="w-6 h-6" />
           </button>
@@ -130,15 +118,30 @@ export default function ChoreChart() {
           <span className="text-sm font-medium text-slate-400">
             Family Members
           </span>
-          {selectedMemberId && !rewardsLocked && (
+          <div className="ml-auto flex items-center gap-2">
+            {selectedMemberId && !rewardsLocked && (
+              <button
+                onClick={() => openGivePoints(selectedMemberId)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-sm font-medium transition-colors"
+              >
+                <Gift className="w-4 h-4" />
+                Give Points
+              </button>
+            )}
+            {/* Admin lock button — prominent and always accessible */}
             <button
-              onClick={() => openGivePoints(selectedMemberId)}
-              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-sm font-medium transition-colors"
+              onClick={handleLockButton}
+              title={rewardsLocked ? 'Unlock admin controls' : 'Lock admin controls'}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                rewardsLocked
+                  ? 'bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-white'
+                  : 'bg-emerald-500/20 hover:bg-red-500/20 text-emerald-400 hover:text-red-400'
+              }`}
             >
-              <Gift className="w-4 h-4" />
-              Give Points
+              {rewardsLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+              {rewardsLocked ? 'Unlock' : 'Lock'}
             </button>
-          )}
+          </div>
         </div>
         <div className="flex gap-3 overflow-x-auto pb-2">
           <button
