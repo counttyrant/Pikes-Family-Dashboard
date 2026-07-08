@@ -113,7 +113,7 @@ export async function fetchImmichAlbumPhotos(
       .map((asset) => {
         const params = new URLSearchParams({
           server: url,
-          path: `/api/assets/${asset.id}/thumbnail`,
+          path: `/api/assets/${asset.id}/thumbnail?size=preview`,
           apiKey,
         });
         return `${PROXY_BASE}?${params}`;
