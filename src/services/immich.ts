@@ -1,9 +1,46 @@
 const PROXY_BASE = '/api/immich-proxy';
 
-async function proxyFetch(serverUrl: string, apiKey: string, path: string) {
+type ProxyMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+
+interface ProxyFetchOptions {
+  method?: ProxyMethod;
+  body?: unknown;
+}
+
+interface ImmichAssetSummary {
+  id: string;
+  type?: string;
+}
+
+function extractAssets(payload: any): ImmichAssetSummary[] {
+  const rawAssets =
+    Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.assets?.items)
+        ? payload.assets.items
+        : Array.isArray(payload?.assets)
+          ? payload.assets
+          : Array.isArray(payload?.items)
+            ? payload.items
+            : [];
+
+  return rawAssets
+    .map((asset: any) => ({
+      id: typeof asset?.id === 'string' ? asset.id : '',
+      type: typeof asset?.type === 'string' ? asset.type : undefined,
+    }))
+    .filter((asset: ImmichAssetSummary) => asset.id.length > 0);
+}
+
+async function proxyFetch(serverUrl: string, apiKey: string, path: string, options: ProxyFetchOptions = {}) {
   const url = serverUrl.replace(/\/+$/, '');
   const params = new URLSearchParams({ server: url, path, apiKey });
-  const response = await fetch(`${PROXY_BASE}?${params}`);
+  const method = options.method ?? 'GET';
+  const response = await fetch(`${PROXY_BASE}?${params}`, {
+    method,
+    headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({ error: response.statusText }));
@@ -31,21 +68,10 @@ export async function removeFromImmichAlbum(
   albumId: string,
   assetId: string
 ): Promise<void> {
-  const url = serverUrl.replace(/\/+$/, '');
-  const params = new URLSearchParams({
-    server: url,
-    path: `/api/albums/${albumId}/assets`,
-    apiKey,
-  });
-  const response = await fetch(`${PROXY_BASE}?${params}`, {
+  await proxyFetch(serverUrl, apiKey, `/api/albums/${albumId}/assets`, {
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids: [assetId] }),
+    body: { ids: [assetId] },
   });
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error(body.error || `Failed to remove asset: ${response.status}`);
-  }
 }
 
 export async function toggleImmichFavorite(
@@ -54,21 +80,10 @@ export async function toggleImmichFavorite(
   assetId: string,
   isFavorite: boolean
 ): Promise<void> {
-  const url = serverUrl.replace(/\/+$/, '');
-  const params = new URLSearchParams({
-    server: url,
-    path: `/api/assets/${assetId}`,
-    apiKey,
-  });
-  const response = await fetch(`${PROXY_BASE}?${params}`, {
+  await proxyFetch(serverUrl, apiKey, `/api/assets/${assetId}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ isFavorite }),
+    body: { isFavorite },
   });
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error(body.error || `Failed to toggle favorite: ${response.status}`);
-  }
 }
 
 export async function fetchImmichAlbumPhotos(
@@ -83,12 +98,13 @@ export async function fetchImmichAlbumPhotos(
     // default to excluding them for performance on large albums.
     const album = await proxyFetch(serverUrl, apiKey, `/api/albums/${albumId}?withoutAssets=false`);
 
-    let assets: { id: string; type?: string }[] = album.assets ?? [];
+    let assets = extractAssets(album?.assets);
 
-    // If fewer assets were returned than the album reports, use paginated fetch
-    if (typeof album.assetCount === 'number' && assets.length < album.assetCount) {
+    // Newer Immich versions do not include album.assets in album detail responses.
+    // Fall back to paginated metadata search to reliably collect album assets.
+    if (assets.length === 0 || (typeof album.assetCount === 'number' && assets.length < album.assetCount)) {
       console.log(`[Immich] Album has ${album.assetCount} assets but only ${assets.length} were included in album response. Fetching all pages...`);
-      assets = await fetchAllAlbumAssets(serverUrl, apiKey, albumId, album.assetCount);
+      assets = await fetchAllAlbumAssets(serverUrl, apiKey, albumId);
     }
 
     // Filter to images only (exclude videos) and build proxied thumbnail URLs
@@ -97,7 +113,7 @@ export async function fetchImmichAlbumPhotos(
       .map((asset) => {
         const params = new URLSearchParams({
           server: url,
-          path: `/api/assets/${asset.id}/thumbnail?size=preview`,
+          path: `/api/assets/${asset.id}/thumbnail`,
           apiKey,
         });
         return `${PROXY_BASE}?${params}`;
@@ -116,28 +132,45 @@ async function fetchAllAlbumAssets(
   serverUrl: string,
   apiKey: string,
   albumId: string,
-  totalCount: number,
-): Promise<{ id: string; type?: string }[]> {
+): Promise<ImmichAssetSummary[]> {
   const PAGE_SIZE = 200;
-  const pages = Math.ceil(totalCount / PAGE_SIZE);
-  const all: { id: string; type?: string }[] = [];
+  const all: ImmichAssetSummary[] = [];
 
-  for (let page = 1; page <= pages && page <= 20; page++) {
+  for (let page = 1; page <= 20; page++) {
     try {
-      // Use the search/metadata endpoint which supports albumId + pagination in all Immich versions
+      // Newer Immich versions: album assets come from search/metadata
       const data = await proxyFetch(
         serverUrl,
         apiKey,
-        `/api/assets?albumId=${encodeURIComponent(albumId)}&page=${page}&size=${PAGE_SIZE}`,
+        '/api/search/metadata',
+        {
+          method: 'POST',
+          body: { albumIds: [albumId], page, size: PAGE_SIZE },
+        },
       );
-      const batch: { id: string; type?: string }[] = Array.isArray(data) ? data : [];
+      const batch = extractAssets(data);
+      if (batch.length === 0) break;
       all.push(...batch);
-      if (batch.length < PAGE_SIZE) break;
+      const nextPage = data?.assets?.nextPage;
+      if (!nextPage || batch.length < PAGE_SIZE) break;
+      continue;
     } catch {
-      // If the paginated endpoint isn't supported, stop and return what we have
-      break;
+      try {
+        // Legacy fallback for older Immich versions
+        const legacy = await proxyFetch(
+          serverUrl,
+          apiKey,
+          `/api/assets?albumId=${encodeURIComponent(albumId)}&page=${page}&size=${PAGE_SIZE}`,
+        );
+        const batch = extractAssets(legacy);
+        if (batch.length === 0) break;
+        all.push(...batch);
+        if (batch.length < PAGE_SIZE) break;
+      } catch {
+        break;
+      }
     }
   }
 
-  return all;
+  return Array.from(new Map(all.map((asset) => [asset.id, asset])).values());
 }
