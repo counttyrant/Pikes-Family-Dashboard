@@ -148,7 +148,9 @@ export const PhotoSlideshow = forwardRef<PhotoSlideshowHandle, Props>(function P
     async function loadRemote() {
       if (settings.photoSource === 'immich' && settings.immichUrl && settings.immichApiKey && settings.immichAlbumId) {
         const urls = await fetchImmichAlbumPhotos(settings.immichUrl, settings.immichApiKey, settings.immichAlbumId);
-        if (!cancelled) setRemoteUrls(urls);
+        // null = fetch failed (bad API key, server unreachable). Keep the
+        // previously loaded photos rather than blanking the kiosk.
+        if (!cancelled && urls) setRemoteUrls(urls);
       } else if (settings.photoSource === 'google-photos' && settings.googleToken && settings.googlePhotosAlbumId) {
         const urls = await fetchGooglePhotosAlbumImages(settings.googleToken, settings.googlePhotosAlbumId);
         if (!cancelled) setRemoteUrls(urls);

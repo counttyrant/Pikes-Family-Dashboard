@@ -41,6 +41,9 @@ app.http('immichProxy', {
 
       if (!response.ok) {
         const text = await response.text().catch(() => '');
+        context.error(
+          `Immich ${req.method} ${path} failed: ${response.status} ${text.slice(0, 200)}`,
+        );
         return {
           status: response.status,
           jsonBody: { error: `Immich returned ${response.status}: ${text.slice(0, 500)}` },

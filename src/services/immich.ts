@@ -1,3 +1,5 @@
+import { logError } from './errorLog';
+
 const PROXY_BASE = '/api/immich-proxy';
 
 type ProxyMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -90,7 +92,7 @@ export async function fetchImmichAlbumPhotos(
   serverUrl: string,
   apiKey: string,
   albumId: string
-): Promise<string[]> {
+): Promise<string[] | null> {
   try {
     const url = serverUrl.replace(/\/+$/, '');
 
@@ -100,11 +102,44 @@ export async function fetchImmichAlbumPhotos(
 
     let assets = extractAssets(album?.assets);
 
-    // Newer Immich versions do not include album.assets in album detail responses.
-    // Fall back to paginated metadata search to reliably collect album assets.
-    if (assets.length === 0 || (typeof album.assetCount === 'number' && assets.length < album.assetCount)) {
-      console.log(`[Immich] Album has ${album.assetCount} assets but only ${assets.length} were included in album response. Fetching all pages...`);
-      assets = await fetchAllAlbumAssets(serverUrl, apiKey, albumId);
+    // Immich reports the album size under different keys across versions.
+    const reportedCount = [album?.assetCount, album?.assetsCount, album?.albumSize]
+      .find((v) => typeof v === 'number') as number | undefined;
+
+    // Newer Immich versions omit or truncate album.assets in album detail
+    // responses. Previously the paginated fallback only ran when a numeric
+    // assetCount was present and larger than the inline array — so a version
+    // that returned a truncated array AND no assetCount silently produced a
+    // small fixed subset of the album (the slideshow then looped those few
+    // photos forever). Treat an unknown count as "must verify by paging".
+    const incomplete =
+      assets.length === 0 ||
+      reportedCount === undefined ||
+      assets.length < reportedCount;
+
+    if (incomplete) {
+      const paged = await fetchAllAlbumAssets(serverUrl, apiKey, albumId);
+      if (paged.length > assets.length) {
+        if (reportedCount === undefined) {
+          logError(
+            'Immich',
+            `Album response did not report an asset count; inline list had ${assets.length} assets, paging recovered ${paged.length}.`,
+          );
+        } else {
+          logError(
+            'Immich',
+            `Album reports ${reportedCount} assets but only ${assets.length} were inlined; paging recovered ${paged.length}.`,
+          );
+        }
+        assets = paged;
+      }
+    }
+
+    if (reportedCount !== undefined && assets.length < reportedCount) {
+      logError(
+        'Immich',
+        `Only resolved ${assets.length} of ${reportedCount} album assets — slideshow will repeat a subset.`,
+      );
     }
 
     // Filter to images only (exclude videos) and build proxied thumbnail URLs
@@ -122,8 +157,8 @@ export async function fetchImmichAlbumPhotos(
     console.log(`[Immich] Loaded ${imageUrls.length} image URLs (${assets.length} total assets in album)`);
     return imageUrls;
   } catch (error) {
-    console.warn('Failed to fetch Immich album photos:', error);
-    return [];
+    logError('Immich', 'Failed to fetch album photos — keeping previous photo list', error);
+    return null;
   }
 }
 
@@ -166,7 +201,8 @@ async function fetchAllAlbumAssets(
         if (batch.length === 0) break;
         all.push(...batch);
         if (batch.length < PAGE_SIZE) break;
-      } catch {
+      } catch (err) {
+        logError('Immich', `Paged album fetch failed at page ${page} (have ${all.length} assets so far)`, err);
         break;
       }
     }

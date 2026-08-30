@@ -1,7 +1,15 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { fetchCalendarEvents } from '../services/googleCalendar'
 import type { CalendarEvent } from '../types'
-import { startOfWeek, endOfWeek } from 'date-fns'
+import { startOfWeek, startOfDay, addDays, subDays } from 'date-fns'
+
+// The Calendar widget can render up to 14 days ahead (7/14-day views) and
+// starts the week on either Sunday or Monday depending on settings, so the
+// fetch window must be wider than any window the widget can display.
+// Fetching only the current week meant that on the last day of the week
+// (e.g. Sunday) no future events were ever loaded.
+const DAYS_AHEAD = 35
+const DAYS_BEHIND = 7
 
 export function useGoogleCalendar(
   token: string | null,
@@ -27,12 +35,14 @@ export function useGoogleCalendar(
 
     try {
       const now = new Date()
-      const weekStart = startOfWeek(now, { weekStartsOn: 1 })
-      const weekEnd = endOfWeek(now, { weekStartsOn: 1 })
+      // Start from the earliest day the widget could show (Sunday-start week),
+      // with extra padding so past days of the current week stay populated.
+      const timeMin = subDays(startOfWeek(startOfDay(now), { weekStartsOn: 0 }), DAYS_BEHIND)
+      const timeMax = addDays(startOfDay(now), DAYS_AHEAD)
 
       const ids = stableIds.length > 0 ? stableIds : ['primary']
       const results = await Promise.allSettled(
-        ids.map((id) => fetchCalendarEvents(token, weekStart, weekEnd, id)),
+        ids.map((id) => fetchCalendarEvents(token, timeMin, timeMax, id)),
       )
 
       const allEvents: CalendarEvent[] = []
