@@ -24,7 +24,7 @@ import { DimOverlay } from './components/presence/DimOverlay'
 import { useAuth } from './contexts/AuthContext'
 import { db } from './db'
 import { getSettings } from './services/storage'
-import { initCloudSync } from './services/cloudSync'
+import { initCloudSync, startSettingsAutoRefresh } from './services/cloudSync'
 import { removeFromImmichAlbum, toggleImmichFavorite } from './services/immich'
 import { fetchWeather, type WeatherData } from './services/weather'
 import { setBrightness } from './services/brightnessService'
@@ -75,11 +75,13 @@ function AppContent() {
 
   const dbSettings = useLiveQuery(() => db.settings.get('main'))
 
-  // Pull settings from cloud on first load
+  // Pull settings from cloud on first load, then keep polling so config
+  // changes made on another device reach this kiosk without a reload.
   useEffect(() => {
     initCloudSync().then((ok) => {
       if (ok) console.log('Cloud sync initialized — settings pulled from cloud');
     });
+    return startSettingsAutoRefresh();
   }, [])
 
   useEffect(() => {

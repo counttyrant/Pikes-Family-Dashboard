@@ -179,6 +179,51 @@ export async function initCloudSync(): Promise<boolean> {
 }
 
 /**
+ * Re-pull settings from the cloud into IndexedDB (cloud wins for defined fields).
+ *
+ * The wall-mounted hub runs for weeks without a reload, so it would otherwise
+ * keep stale config forever — e.g. after rotating the Immich API key on
+ * another device, the kiosk keeps using the old key and every request 401s.
+ *
+ * googleToken is deliberately excluded: AuthContext owns it and rewrites it on
+ * every proactive refresh, so a stale cloud copy must not clobber it.
+ */
+const LOCALLY_OWNED_SETTINGS = ['googleToken'];
+
+export async function refreshSettingsFromCloud(): Promise<boolean> {
+  try {
+    const cloudSettings = await pullOneFromCloud('settings', 'main');
+    if (!cloudSettings) return false;
+
+    const { db } = await import('../db');
+    const clean = stripCosmosMeta(cloudSettings);
+    for (const key of LOCALLY_OWNED_SETTINGS) delete clean[key];
+
+    const local = await db.settings.get('main');
+    const merged = { ...(local ?? {}), ...clean, id: 'main' };
+
+    // Avoid a pointless IndexedDB write (and the useLiveQuery re-render storm
+    // it would trigger across every widget) when nothing actually changed.
+    if (local && JSON.stringify(local) === JSON.stringify(merged)) return false;
+
+    await db.settings.put(merged as never);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Poll the cloud for settings changes. Returns a cleanup function.
+ */
+export function startSettingsAutoRefresh(intervalMs = 5 * 60 * 1000): () => void {
+  const timer = setInterval(() => {
+    void refreshSettingsFromCloud();
+  }, intervalMs);
+  return () => clearInterval(timer);
+}
+
+/**
  * Save all settings + widget data to cloud (manual).
  */
 export async function saveAllToCloud(): Promise<boolean> {
