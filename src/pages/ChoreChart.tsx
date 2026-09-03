@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
+import { addStickerRecord } from '../services/storage';
 import {
   Settings,
   ClipboardList,
@@ -88,8 +89,7 @@ export default function ChoreChart() {
     const pts = Math.max(1, Math.round(givePointsAmount));
     const reason = givePointsReason.trim();
     try {
-      await db.stickerRecords.add({
-        id: crypto.randomUUID(),
+      await addStickerRecord({
         memberId: givePointsMemberId,
         // The reason was previously collected but never persisted.
         label: reason || (givePointsRemove ? 'Points removed' : 'Bonus points'),

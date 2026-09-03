@@ -1,6 +1,7 @@
 ﻿import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
+import { addStickerRecord } from '../../services/storage';
 import { Gift, Plus, Star, X, Lock, Check, Trash2 } from 'lucide-react';
 
 const REWARD_ICONS = [
@@ -60,8 +61,7 @@ export default function RewardSystem({ selectedMemberId, locked = true, onActivi
     touch();
     setClaimedId(rewardId);
     // Deduct points via a negative sticker record — reward stays available for future claims
-    await db.stickerRecords.add({
-      id: crypto.randomUUID(),
+    await addStickerRecord({
       memberId: selectedMemberId,
       rewardId: reward.id,
       label: reward.title,

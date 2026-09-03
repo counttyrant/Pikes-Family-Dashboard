@@ -172,6 +172,9 @@ export async function initCloudSync(): Promise<boolean> {
         await cloudPut('localStorage', { id: key, value: localVal });
       }
     }
+
+    // Merge the star ledger so chore history and balances match across devices
+    await syncStickerRecords();
     return true;
   } catch {
     return false;
@@ -221,6 +224,53 @@ export function startSettingsAutoRefresh(intervalMs = 5 * 60 * 1000): () => void
     void refreshSettingsFromCloud();
   }, intervalMs);
   return () => clearInterval(timer);
+}
+
+/**
+ * Two-way sync for the star ledger (stickerRecords).
+ *
+ * Entries are append-only and keyed by UUID, so a merge is safe: pull cloud
+ * records into IndexedDB, then push up any local-only records. Deletions
+ * propagate through deleteStickerRecord(), which removes from both sides, so
+ * a pull cannot resurrect a deleted entry.
+ *
+ * Without this the chore chart history and point balances stay device-local —
+ * stars earned on the wall hub would never appear on any other device.
+ */
+export async function syncStickerRecords(): Promise<boolean> {
+  try {
+    const { db } = await import('../db');
+    const cloudRecords = await pullFromCloud('stickerRecords');
+    const local = await db.stickerRecords.toArray();
+    const localIds = new Set(local.map((r) => r.id));
+
+    if (cloudRecords.length > 0) {
+      const incoming = cloudRecords.map((doc) => {
+        const clean = stripCosmosMeta(doc);
+        return {
+          ...clean,
+          // JSON round-trip turns Date into an ISO string; restore it so
+          // Dexie's earnedAt index sorts correctly.
+          earnedAt: clean.earnedAt ? new Date(clean.earnedAt as string) : new Date(0),
+        };
+      });
+      await db.stickerRecords.bulkPut(incoming as never[]);
+    }
+
+    const cloudIds = new Set(cloudRecords.map((d) => d.id));
+    const localOnly = local.filter((r) => !cloudIds.has(r.id));
+    for (const record of localOnly) {
+      await syncToCloud('stickerRecords', {
+        ...record,
+        earnedAt:
+          record.earnedAt instanceof Date ? record.earnedAt.toISOString() : record.earnedAt,
+      }).catch(() => {});
+    }
+
+    return cloudRecords.length > 0 || localIds.size > 0;
+  } catch {
+    return false;
+  }
 }
 
 /**

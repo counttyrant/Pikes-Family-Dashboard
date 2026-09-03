@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
+import { addStickerRecord } from '../../services/storage';
 import { isToday, isThisWeek, isPast, format } from 'date-fns';
 import { Plus, Trash2, Check, Calendar, Star, X } from 'lucide-react';
 import type { Chore, FamilyMember, ChoreRecurrence } from '../../types';
@@ -63,8 +64,7 @@ export default function ChoreList({ selectedMemberId, locked = false }: ChoreLis
 
     const completedBy = selectedMemberId || chore.assignedTo[0] || '';
     if (completedBy) {
-      await db.stickerRecords.add({
-        id: crypto.randomUUID(),
+      await addStickerRecord({
         memberId: completedBy,
         choreId: chore.id,
         label: chore.title,

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
+import { deleteStickerRecord } from '../../services/storage';
 import { Star, ClipboardCheck, Gift, Hand, History, Trash2 } from 'lucide-react';
 import type { StickerRecord, FamilyMember } from '../../types';
 
@@ -95,7 +96,7 @@ export default function StarHistory({ members, selectedMemberId, locked = true }
   }, [visible]);
 
   const removeEntry = async (id: string) => {
-    await db.stickerRecords.delete(id);
+    await deleteStickerRecord(id);
   };
 
   return (
