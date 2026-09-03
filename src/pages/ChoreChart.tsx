@@ -10,16 +10,19 @@ import {
   X,
   Lock,
   Unlock,
+  History,
 } from 'lucide-react';
 import FamilyMemberCard from '../components/chores/FamilyMember';
 import ChoreList from '../components/chores/ChoreList';
 import RewardSystem from '../components/chores/RewardSystem';
+import StarHistory from '../components/chores/StarHistory';
 
 const PASSCODE = '6554';
 const AUTO_LOCK_MS = 3 * 60 * 1000;
 
 export default function ChoreChart() {
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
   const [givePointsMemberId, setGivePointsMemberId] = useState<string | null>(null);
   const [givePointsAmount, setGivePointsAmount] = useState(5);
   const [givePointsRemove, setGivePointsRemove] = useState(false);
@@ -83,10 +86,14 @@ export default function ChoreChart() {
   const saveGivePoints = async () => {
     if (!givePointsMemberId) return;
     const pts = Math.max(1, Math.round(givePointsAmount));
+    const reason = givePointsReason.trim();
     try {
       await db.stickerRecords.add({
         id: crypto.randomUUID(),
         memberId: givePointsMemberId,
+        // The reason was previously collected but never persisted.
+        label: reason || (givePointsRemove ? 'Points removed' : 'Bonus points'),
+        kind: 'manual',
         earnedAt: new Date(),
         points: givePointsRemove ? -pts : pts,
       });
@@ -108,6 +115,14 @@ export default function ChoreChart() {
           <h1 className="text-3xl font-bold text-white">Chore Chart</h1>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowHistory(true)}
+            title="Star history"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors text-sm font-medium"
+          >
+            <History className="w-5 h-5" />
+            History
+          </button>
           <button className="w-11 h-11 flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
             <Settings className="w-6 h-6" />
           </button>
@@ -185,6 +200,32 @@ export default function ChoreChart() {
           />
         </div>
       </div>
+
+      {/* ── Star history modal (portal — renders to body, outside Swiper transform) ── */}
+      {showHistory && createPortal(
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6"
+          onClick={(e) => e.target === e.currentTarget && setShowHistory(false)}
+        >
+          <div className="bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col p-5">
+            <div className="flex items-center justify-end mb-1 flex-shrink-0">
+              <button
+                onClick={() => setShowHistory(false)}
+                className="p-1.5 hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                <X size={18} className="text-slate-400" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <StarHistory
+                members={members}
+                selectedMemberId={selectedMemberId}
+                locked={rewardsLocked}
+              />
+            </div>
+          </div>
+        </div>
+      , document.body)}
 
       {/* ── Unlock passcode modal (portal — renders to body, outside Swiper transform) ── */}
       {showUnlockModal && createPortal(

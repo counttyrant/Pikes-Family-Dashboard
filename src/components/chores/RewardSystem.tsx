@@ -63,6 +63,9 @@ export default function RewardSystem({ selectedMemberId, locked = true, onActivi
     await db.stickerRecords.add({
       id: crypto.randomUUID(),
       memberId: selectedMemberId,
+      rewardId: reward.id,
+      label: reward.title,
+      kind: 'reward',
       earnedAt: new Date(),
       points: -reward.pointsCost,
     });

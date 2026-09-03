@@ -89,10 +89,19 @@ export interface Reward {
   claimedBy: string | null;
 }
 
+export type StickerReason = 'chore' | 'reward' | 'manual';
+
 export interface StickerRecord {
   id: string;
   memberId: string;
   choreId?: string;
+  rewardId?: string;
+  /**
+   * Snapshot of what this entry was for, captured at write time so history
+   * stays readable after the chore or reward is renamed or deleted.
+   */
+  label?: string;
+  kind?: StickerReason;
   earnedAt: Date;
   points: number;
 }

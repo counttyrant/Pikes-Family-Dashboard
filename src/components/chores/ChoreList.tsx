@@ -67,6 +67,8 @@ export default function ChoreList({ selectedMemberId, locked = false }: ChoreLis
         id: crypto.randomUUID(),
         memberId: completedBy,
         choreId: chore.id,
+        label: chore.title,
+        kind: 'chore',
         earnedAt: new Date(),
         points: chore.points,
       });
@@ -85,7 +87,9 @@ export default function ChoreList({ selectedMemberId, locked = false }: ChoreLis
 
   const deleteChore = async (id: string) => {
     await db.chores.delete(id);
-    await db.stickerRecords.where('choreId').equals(id).delete();
+    // Sticker records are deliberately kept: those stars were genuinely
+    // earned and still count toward the balance, and the history needs them.
+    // Each record carries a label snapshot so it stays readable without the chore.
   };
 
   const addChore = async () => {
