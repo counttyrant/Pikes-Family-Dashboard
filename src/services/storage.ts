@@ -57,7 +57,7 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   openaiTtsApiKey: '',
   openaiTtsVoice: 'nova',
   openaiTtsModel: 'tts-1',
-  enabledPages: ['dashboard', 'chores', 'shopping', 'activities', 'recipes', 'jellyfin'],
+  enabledPages: ['dashboard', 'chores', 'shopping', 'activities', 'recipes'],
   autoPictureMode: true,
   autoPictureModeTimeout: 300,
   widgetBlur: {},

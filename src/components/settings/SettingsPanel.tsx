@@ -1967,13 +1967,16 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
               Enable/disable pages and drag to reorder. At least one page must remain enabled.
             </p>
             {(() => {
-              const enabled: string[] = settings?.enabledPages ?? DEFAULT_PAGE_ORDER;
+              // Drop ids for pages that no longer exist (e.g. removed Jellyfin page)
+              const validIds: string[] = ALL_PAGES.map(p => p.id);
+              const getCurrent = () => (settings?.enabledPages ?? [...DEFAULT_PAGE_ORDER]).filter(id => validIds.includes(id));
+              const enabled: string[] = getCurrent();
               // Build full list: enabled pages in order, then disabled ones
-              const disabled = ALL_PAGES.map(p => p.id).filter(id => !enabled.includes(id));
+              const disabled = validIds.filter(id => !enabled.includes(id));
               const ordered = [...enabled, ...disabled];
 
               const toggle = (id: string) => {
-                const current = settings?.enabledPages ?? [...DEFAULT_PAGE_ORDER];
+                const current = getCurrent();
                 if (current.includes(id)) {
                   if (current.length <= 1) return; // keep at least one
                   save({ enabledPages: current.filter(p => p !== id) });
@@ -1983,7 +1986,7 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
               };
 
               const moveUp = (id: string) => {
-                const current = [...(settings?.enabledPages ?? DEFAULT_PAGE_ORDER)];
+                const current = getCurrent();
                 const idx = current.indexOf(id);
                 if (idx <= 0) return;
                 [current[idx - 1], current[idx]] = [current[idx], current[idx - 1]];
@@ -1991,7 +1994,7 @@ export function SettingsPanel({ open: controlledOpen, onClose }: SettingsPanelPr
               };
 
               const moveDown = (id: string) => {
-                const current = [...(settings?.enabledPages ?? DEFAULT_PAGE_ORDER)];
+                const current = getCurrent();
                 const idx = current.indexOf(id);
                 if (idx < 0 || idx >= current.length - 1) return;
                 [current[idx], current[idx + 1]] = [current[idx + 1], current[idx]];

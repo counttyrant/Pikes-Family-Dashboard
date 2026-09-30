@@ -11,10 +11,10 @@ import ChoreChart from './pages/ChoreChart'
 import ShoppingNotes from './pages/ShoppingNotes'
 import ActivitiesPage from './pages/ActivitiesPage'
 import RecipesPage from './pages/RecipesPage'
-import JellyfinPage from './pages/JellyfinPage'
 import { SettingsPanel } from './components/settings/SettingsPanel'
 import { AiAssistant } from './components/ai/AiAssistant'
 import { PhotoSlideshow } from './components/widgets/PhotoSlideshow'
+import { AlbumSwitcher } from './components/widgets/AlbumSwitcher'
 import type { PhotoSlideshowHandle } from './components/widgets/PhotoSlideshow'
 import { LoginScreen } from './components/auth/LoginScreen'
 import { ReconnectBanner } from './components/auth/ReconnectBanner'
@@ -335,8 +335,6 @@ function AppContent() {
             openaiModel={settings?.openaiModel || 'gpt-4o-mini'}
           />
         );
-      case 'jellyfin':
-        return <JellyfinPage />;
       default:
         return null;
     }
@@ -462,6 +460,7 @@ function AppContent() {
             >
               <Shuffle size={20} />
             </button>
+            <AlbumSwitcher settings={settings} />
             <button
               onClick={(e) => { e.stopPropagation(); handleFavoritePhoto(); }}
               className={`rounded-full p-3 backdrop-blur-sm transition-colors ${isFavorited ? 'bg-pink-500/60 hover:bg-pink-500/80' : 'bg-black/40 hover:bg-pink-500/40'}`}
@@ -499,6 +498,7 @@ function AppContent() {
             >
               <ImagePlay size={20} />
             </button>
+            <AlbumSwitcher settings={settings} />
             <button
               onClick={() => setSettingsOpen(true)}
               className="rounded-full bg-black/40 p-3 backdrop-blur-sm hover:bg-black/60 transition-colors"
