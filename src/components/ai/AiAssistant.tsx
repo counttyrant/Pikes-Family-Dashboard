@@ -314,10 +314,11 @@ export function AiAssistant({ apiKey, aiProvider = 'openai', azureEndpoint = '',
   /* -- Render ------------------------------------------------------------ */
 
   return (
-    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 flex flex-col items-end gap-3">
-      {/* Chat panel — always mounted for smooth animation */}
+    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40">
+      {/* Chat panel — always mounted for smooth animation. Absolutely positioned so the
+          closed (invisible) panel doesn't enlarge the wrapper and block taps underneath. */}
       <div
-        className={`w-[calc(100vw-2rem)] max-w-[350px] h-[70vh] max-h-[500px] bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right ${
+        className={`absolute bottom-full right-0 mb-3 w-[calc(100vw-2rem)] max-w-[350px] h-[70vh] max-h-[500px] bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right ${
           isOpen
             ? 'scale-100 opacity-100 pointer-events-auto'
             : 'scale-90 opacity-0 pointer-events-none'
